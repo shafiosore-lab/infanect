@@ -1,0 +1,36 @@
+<?php
+
+return [
+    'top_activities' => 'Meilleures activités',
+    'top_services'   => 'Meilleurs services',
+    'top_providers'  => 'Meilleurs prestataires',
+    'searching'      => 'Recherche...',
+
+    // Provider Profile
+    'about_provider' => 'À propos de :name',
+    'service_type' => 'Type de service',
+    'experience' => 'Expérience',
+    'location' => 'Emplacement',
+    'languages' => 'Langues',
+    'global_reach' => '🌍 Portée mondiale',
+    'happy_clients' => 'Clients satisfaits',
+    'client_reviews' => 'Avis clients',
+    'contact_information' => 'Informations de contact',
+    'ready_to_book' => 'Prêt à réserver ?',
+    'book_now_description' => 'Découvrez un service de classe mondiale avec :name. Réservez maintenant et rejoignez des milliers de clients satisfaits dans le monde entier.',
+    'starting_price' => 'Prix de départ',
+    'response_time' => 'Temps de réponse',
+    'book_now' => 'Réserver maintenant',
+    'quick_stats' => 'Statistiques rapides',
+    'total_projects' => 'Total des projets',
+    'success_rate' => 'Taux de réussite',
+    'avg_response' => 'Réponse moy.',
+    'member_since' => 'Membre depuis',
+    'no_reviews_yet' => 'Aucun avis pour le moment. Soyez le premier à partager votre expérience !',
+    'general_services' => 'Services généraux',
+    'years_experience' => ':count+ ans',
+    'international' => 'International',
+    'less_than_2_hours' => '< 2 heures',
+    'less_than_1_hour' => '< 1h',
+    'service_provider' => 'Prestataire de services',
+];

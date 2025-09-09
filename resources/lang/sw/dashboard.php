@@ -1,0 +1,36 @@
+<?php
+
+return [
+    'top_activities' => 'Shughuli Bora',
+    'top_services'   => 'Huduma Bora',
+    'top_providers'  => 'Watoa Huduma Bora',
+    'searching'      => 'Inatafuta...',
+
+    // Provider Profile
+    'about_provider' => 'Kuhusu :name',
+    'service_type' => 'Aina ya Huduma',
+    'experience' => 'Uzoefu',
+    'location' => 'Mahali',
+    'languages' => 'Lugha',
+    'global_reach' => '🌍 Ufikiaji wa Kimataifa',
+    'happy_clients' => 'Wateja Wenye Furaha',
+    'client_reviews' => 'Maoni ya Wateja',
+    'contact_information' => 'Maelezo ya Mawasiliano',
+    'ready_to_book' => 'Tayari Kuhifadhi?',
+    'book_now_description' => 'Pata huduma ya kiwango cha juu na :name. Hifadhi sasa na ujiunge na maelfu ya wateja walioridhika duniani kote.',
+    'starting_price' => 'Bei ya Kuanza',
+    'response_time' => 'Muda wa Kujibu',
+    'book_now' => 'Hifadhi Sasa',
+    'quick_stats' => 'Takwimu za Haraka',
+    'total_projects' => 'Jumla ya Miradi',
+    'success_rate' => 'Kiwango cha Mafanikio',
+    'avg_response' => 'Majibu ya Wastani',
+    'member_since' => 'Mwanachama Tangu',
+    'no_reviews_yet' => 'Hakuna maoni bado. Kuwa wa kwanza kushiriki uzoefu wako!',
+    'general_services' => 'Huduma za Jumla',
+    'years_experience' => 'Miaka :count+',
+    'international' => 'Kimataifa',
+    'less_than_2_hours' => '< saa 2',
+    'less_than_1_hour' => '< 1h',
+    'service_provider' => 'Mtoa Huduma',
+];

@@ -1,0 +1,36 @@
+<?php
+
+return [
+    'top_activities' => 'Top Activities',
+    'top_services'   => 'Top Services',
+    'top_providers'  => 'Top Providers',
+    'searching'      => 'Searching...',
+
+    // Provider Profile
+    'about_provider' => 'About :name',
+    'service_type' => 'Service Type',
+    'experience' => 'Experience',
+    'location' => 'Location',
+    'languages' => 'Languages',
+    'global_reach' => '🌍 Global Reach',
+    'happy_clients' => 'Happy Clients',
+    'client_reviews' => 'Client Reviews',
+    'contact_information' => 'Contact Information',
+    'ready_to_book' => 'Ready to Book?',
+    'book_now_description' => 'Experience world-class service with :name. Book now and join thousands of satisfied clients globally.',
+    'starting_price' => 'Starting Price',
+    'response_time' => 'Response Time',
+    'book_now' => 'Book Now',
+    'quick_stats' => 'Quick Stats',
+    'total_projects' => 'Total Projects',
+    'success_rate' => 'Success Rate',
+    'avg_response' => 'Avg. Response',
+    'member_since' => 'Member Since',
+    'no_reviews_yet' => 'No reviews yet. Be the first to share your experience!',
+    'general_services' => 'General Services',
+    'years_experience' => ':count+ Years',
+    'international' => 'International',
+    'less_than_2_hours' => '< 2 hours',
+    'less_than_1_hour' => '< 1hr',
+    'service_provider' => 'Service Provider',
+];
