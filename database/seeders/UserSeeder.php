@@ -3,82 +3,117 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\User;
-use App\Models\Role;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 
 class UserSeeder extends Seeder
 {
-    public function run(): void
+    public function run()
     {
-        // Fetch roles (RoleSeeder must run first)
-        $clientRole   = Role::where('slug', 'client')->first();
-        $employeeRole = Role::where('slug', 'employee')->first();
-        $providerRole = Role::where('slug', 'provider')->first();
-        $managerRole  = Role::where('slug', 'manager')->first();
-        $adminRole    = Role::where('slug', 'admin')->first();
+        // Resolve or create roles and obtain IDs
+        $roleIds = [
+            'provider' => null,
+            'client' => null,
+            'admin' => null,
+        ];
 
-        // --- Clients ---
-        User::firstOrCreate(
-            ['email' => 'client@infanect.com'],
-            [
-                'name'       => 'John Client',
-                'password'   => Hash::make('password'),
-                'role_id'    => $clientRole?->id ?? $employeeRole?->id,
-                'phone'      => '+254700123456',
-                'department' => 'Client',
-                'is_active'  => true,
-            ]
-        );
+        // If spatie is installed, use it
+        if (class_exists(\Spatie\Permission\Models\Role::class)) {
+            try {
+                $spatieRoles = \Spatie\Permission\Models\Role::all()->keyBy(function($r){
+                    return strtolower(str_replace(' ', '-', $r->name));
+                });
 
-        User::firstOrCreate(
-            ['email' => 'sarah.client@example.com'],
-            [
-                'name'       => 'Sarah Johnson',
-                'password'   => Hash::make('password'),
-                'role_id'    => $clientRole?->id ?? $employeeRole?->id,
-                'phone'      => '+1234567890',
-                'department' => 'Parent',
-                'is_active'  => true,
-            ]
-        );
+                foreach (['provider','client','admin'] as $slug) {
+                    if (isset($spatieRoles[$slug])) {
+                        $roleIds[$slug] = $spatieRoles[$slug]->id;
+                    } else {
+                        $r = \Spatie\Permission\Models\Role::firstOrCreate(['name' => $slug]);
+                        $roleIds[$slug] = $r->id;
+                    }
+                }
+            } catch (\Exception $e) {
+                // ignore and fallback
+            }
+        }
 
-        // --- Provider ---
-        User::firstOrCreate(
+        // Fallback: roles table
+        if (empty(array_filter($roleIds)) && Schema::hasTable('roles')) {
+            $needed = [
+                'client' => 'Parent / Client',
+                'provider' => 'Provider Admin',
+                'admin' => 'Super Admin',
+            ];
+
+            foreach ($needed as $slug => $name) {
+                // Try find by slug or name
+                $r = DB::table('roles')->where('slug', $slug)->orWhere('name', $name)->first();
+                if (! $r) {
+                    try {
+                        $id = DB::table('roles')->updateOrInsert(
+                            ['slug' => $slug],
+                            ['name' => $name, 'slug' => $slug, 'updated_at' => now(), 'created_at' => now()]
+                        );
+                        // updateOrInsert returns boolean, fetch the record
+                        $r = DB::table('roles')->where('slug', $slug)->first();
+                    } catch (\Exception $e) {
+                        // if insert fails due to race condition, fetch existing
+                        $r = DB::table('roles')->where('slug', $slug)->orWhere('name', $name)->first();
+                    }
+                }
+
+                if ($r) $roleIds[$slug] = $r->id;
+            }
+        }
+
+        // Final fallback: set to 1 if still null
+        foreach ($roleIds as $k => $v) {
+            if (empty($v)) $roleIds[$k] = 1;
+        }
+
+        // Create provider user (idempotent)
+        DB::table('users')->updateOrInsert(
             ['email' => 'provider@infanect.com'],
             [
-                'name'       => 'Peter Provider',
-                'password'   => Hash::make('password'),
-                'role_id'    => $providerRole?->id,
-                'phone'      => '+254700987654',
+                'name' => 'Peter Provider',
+                'password' => Hash::make('password'),
+                'role_id' => $roleIds['provider'],
+                'phone' => '+254700987654',
                 'department' => 'Provider Services',
-                'is_active'  => true,
+                'is_active' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         );
 
-        // --- Manager ---
-        User::firstOrCreate(
-            ['email' => 'manager@infanect.com'],
+        // Create client user
+        DB::table('users')->updateOrInsert(
+            ['email' => 'client@infanect.com'],
             [
-                'name'       => 'Mary Manager',
-                'password'   => Hash::make('password'),
-                'role_id'    => $managerRole?->id,
-                'phone'      => '+254711222333',
-                'department' => 'Management',
-                'is_active'  => true,
+                'name' => 'Cathy Client',
+                'password' => Hash::make('password'),
+                'role_id' => $roleIds['client'],
+                'phone' => '+254700123456',
+                'department' => 'Families',
+                'is_active' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         );
 
-        // --- Admin ---
-        User::firstOrCreate(
+        // Create admin user
+        DB::table('users')->updateOrInsert(
             ['email' => 'admin@infanect.com'],
             [
-                'name'       => 'Super Admin',
-                'password'   => Hash::make('password'),
-                'role_id'    => $adminRole?->id,
-                'phone'      => '+1111111111',
-                'department' => 'System',
-                'is_active'  => true,
+                'name' => 'Super Admin',
+                'password' => Hash::make('password'),
+                'role_id' => $roleIds['admin'],
+                'phone' => null,
+                'department' => 'Administration',
+                'is_active' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]
         );
     }

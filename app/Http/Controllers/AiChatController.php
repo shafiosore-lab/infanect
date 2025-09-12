@@ -3,336 +3,163 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\AiChatConversation;
-use App\Models\ParentingModule;
-use App\Models\ModuleContent;
-use App\Models\User;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
+use App\Models\Document;
+use App\Models\DocumentChunk;
+use App\Jobs\ComputeDocumentEmbeddings;
+use App\Services\Ai\EmbeddingService;
+use App\Services\Ai\LlmService;
+use App\Events\DocumentUploaded;
 
 class AiChatController extends Controller
 {
-    public function index(Request $request)
+    public function index()
     {
-        $user = Auth::user();
-
-        // Get user's conversation sessions
-        $sessions = AiChatConversation::forUser($user->id)
-            ->select('session_id')
-            ->distinct()
-            ->orderBy('created_at', 'desc')
-            ->get()
-            ->pluck('session_id');
-
-        // Get current session or create new one
-        $currentSession = $request->get('session') ?: AiChatConversation::createNewSession($user->id);
-
-        // Get conversation history for current session
-        $conversation = AiChatConversation::bySession($currentSession)
-            ->orderBy('created_at', 'asc')
-            ->get();
-
-        return view('ai-chat.index', compact('sessions', 'currentSession', 'conversation'));
+        return view('ai.chat');
     }
 
-    public function sendMessage(Request $request)
+    public function upload(Request $request)
     {
         $request->validate([
-            'message' => 'required|string|max:1000',
-            'session_id' => 'required|string',
+            'document' => 'required|file|mimes:pdf|max:51200',
         ]);
 
-        $user = Auth::user();
-        $message = trim($request->message);
-        $sessionId = $request->session_id;
+        $file = $request->file('document');
+        $path = $file->store('documents');
 
-        // Save user message
-        AiChatConversation::create([
-            'user_id' => $user->id,
-            'session_id' => $sessionId,
-            'message_type' => 'user',
-            'message' => $message,
+        $doc = Document::create([
+            'filename' => $path,
+            'original_name' => $file->getClientOriginalName(),
+            'mime' => $file->getClientMimeType(),
+            'size' => $file->getSize(),
+            'meta' => null,
         ]);
 
-        // Generate AI response based on approved resources
-        $response = $this->generateMentalHealthResponse($message, $user);
+        $text = null;
 
-        // Save assistant response
-        $assistantMessage = AiChatConversation::create([
-            'user_id' => $user->id,
-            'session_id' => $sessionId,
-            'message_type' => 'assistant',
-            'message' => $response['message'],
-            'metadata' => $response['metadata'],
-        ]);
-
-        // Generate audio if requested
-        if ($request->has('generate_audio') && $request->generate_audio) {
-            $audioUrl = $this->generateAudio($response['message'], $assistantMessage->id);
-            if ($audioUrl) {
-                $assistantMessage->update([
-                    'is_audio_generated' => true,
-                    'audio_url' => $audioUrl,
-                ]);
+        // Try to extract text using Smalot\PdfParser if available
+        try {
+            if (class_exists('\Smalot\PdfParser\Parser')) {
+                $parser = new \Smalot\PdfParser\Parser();
+                $pdf = $parser->parseFile(storage_path('app/' . $path));
+                $text = $pdf->getText();
             }
+        } catch (\Throwable $e) {
+            Log::warning('PDF text extraction failed: '.$e->getMessage());
+            $text = null;
         }
 
-        return response()->json([
-            'success' => true,
-            'message' => $assistantMessage,
-            'sources' => $response['sources'] ?? [],
-        ]);
-    }
-
-    public function generateAudio($messageId)
-    {
-        $message = AiChatConversation::findOrFail($messageId);
-
-        if (!$message->isAssistantMessage()) {
-            return response()->json(['error' => 'Only assistant messages can generate audio'], 400);
+        // Fallback: small placeholder text
+        if (empty($text)) {
+            $text = 'Uploaded document: ' . $file->getClientOriginalName();
         }
 
-        // Generate audio using Web Speech API or external service
-        // For now, we'll simulate this - in production you'd integrate with TTS service
-        $audioUrl = $this->generateAudioFile($message->message, $message->id);
+        // Split text into chunks of ~800 characters (safe chunking)
+        $chunkSize = 800;
+        $clean = preg_replace('/\s+/', ' ', trim($text));
+        $parts = str_split($clean, $chunkSize);
 
-        if ($audioUrl) {
-            $message->update([
-                'is_audio_generated' => true,
-                'audio_url' => $audioUrl,
-            ]);
-
-            return response()->json([
-                'success' => true,
-                'audio_url' => $audioUrl,
+        foreach ($parts as $i => $part) {
+            DocumentChunk::create([
+                'document_id' => $doc->id,
+                'chunk_index' => $i,
+                'text' => $part,
             ]);
         }
 
-        return response()->json(['error' => 'Failed to generate audio'], 500);
+        // Dispatch job to compute embeddings (async) if queue configured
+        try {
+            ComputeDocumentEmbeddings::dispatch($doc->id);
+        } catch (\Throwable $e) {
+            // If dispatch fails, run synchronously
+            try { (new ComputeDocumentEmbeddings($doc->id))->handle(new EmbeddingService()); } catch (\Throwable $ex) { Log::error('Embeddings dispatch failed: '.$ex->getMessage()); }
+        }
+
+        // Dispatch real-time event for admin listeners
+        try {
+            event(new DocumentUploaded($doc));
+        } catch (\Throwable $e) {
+            Log::warning('Event dispatch failed: '.$e->getMessage());
+        }
+
+        return back()->with('status', 'Document uploaded and processed.');
     }
 
-    public function newSession()
+    public function documents(Request $request)
     {
-        $user = Auth::user();
-        $sessionId = AiChatConversation::createNewSession($user->id);
+        $docs = Document::withCount(['chunks as total_chunks_count' => function($q){}, 'chunks as indexed_chunks_count' => function($q){ $q->where('indexed', true); }])->orderBy('created_at','desc')->get();
 
-        return response()->json([
-            'success' => true,
-            'session_id' => $sessionId,
-        ]);
+        $payload = $docs->map(function($d){
+            return [
+                'id' => $d->id,
+                'original_name' => $d->original_name,
+                'filename' => $d->filename,
+                'total_chunks' => $d->total_chunks_count ?? 0,
+                'indexed_chunks' => $d->indexed_chunks_count ?? 0,
+                'created_at' => $d->created_at->toDateTimeString(),
+            ];
+        });
+
+        return response()->json(['documents' => $payload]);
     }
 
-    public function getConversation($sessionId)
+    public function message(Request $request)
     {
-        $user = Auth::user();
+        $request->validate(['message' => 'required|string']);
+        $q = $request->input('message');
 
-        $conversation = AiChatConversation::bySession($sessionId)
-            ->forUser($user->id)
-            ->orderBy('created_at', 'asc')
-            ->get();
+        $embedSvc = new EmbeddingService();
+        $qEmbedding = $embedSvc->embedText($q);
 
-        return response()->json([
-            'success' => true,
-            'conversation' => $conversation,
-        ]);
-    }
+        $context = '';
 
-    private function generateMentalHealthResponse($userMessage, User $user)
-    {
-        // Search through approved parenting modules and content
-        $searchResults = $this->searchApprovedResources($userMessage);
-
-        // Generate contextual response based on search results
-        $response = $this->createContextualResponse($userMessage, $searchResults, $user);
-
-        return [
-            'message' => $response,
-            'metadata' => [
-                'sources' => $searchResults['sources'],
-                'confidence' => $searchResults['confidence'],
-                'search_terms' => $this->extractKeywords($userMessage),
-            ],
-            'sources' => $searchResults['sources'],
-        ];
-    }
-
-    private function searchApprovedResources($query)
-    {
-        $keywords = $this->extractKeywords($query);
-        $sources = [];
-        $confidence = 0;
-
-        // Search in parenting modules
-        foreach ($keywords as $keyword) {
-            $modules = ParentingModule::published()
-                ->where(function($q) use ($keyword) {
-                    $q->where('title', 'like', "%{$keyword}%")
-                      ->orWhere('description', 'like', "%{$keyword}%")
-                      ->orWhere('tags', 'like', "%{$keyword}%");
-                })
-                ->get();
-
-            foreach ($modules as $module) {
-                $sources[] = [
-                    'type' => 'module',
-                    'id' => $module->id,
-                    'title' => $module->title,
-                    'url' => route('parenting-modules.show', $module),
-                    'relevance' => $this->calculateRelevance($keyword, $module),
-                ];
-                $confidence = max($confidence, $this->calculateRelevance($keyword, $module));
+        if (empty($qEmbedding)) {
+            // Fallback to simple LIKE search when embeddings unavailable
+            $terms = preg_split('/\s+/', $q);
+            $query = DocumentChunk::query();
+            foreach ($terms as $t) {
+                $query->orWhere('text', 'like', "%{$t}%");
             }
-
-            // Search in module contents
-            $contents = ModuleContent::whereHas('module', function($q) {
-                    $q->published();
-                })
-                ->where(function($q) use ($keyword) {
-                    $q->where('title', 'like', "%{$keyword}%")
-                      ->orWhere('description', 'like', "%{$keyword}%");
-                })
-                ->with('module')
-                ->get();
-
-            foreach ($contents as $content) {
-                $sources[] = [
-                    'type' => 'content',
-                    'id' => $content->id,
-                    'title' => $content->title,
-                    'module_title' => $content->module->title,
-                    'url' => route('parenting-modules.content', [$content->module, $content]),
-                    'relevance' => $this->calculateRelevance($keyword, $content),
-                ];
-                $confidence = max($confidence, $this->calculateRelevance($keyword, $content));
-            }
-        }
-
-        // Remove duplicates and sort by relevance
-        $sources = collect($sources)->unique('id')->sortByDesc('relevance')->take(5)->values()->all();
-
-        return [
-            'sources' => $sources,
-            'confidence' => min(100, $confidence * 100),
-        ];
-    }
-
-    private function createContextualResponse($userMessage, $searchResults, User $user)
-    {
-        $sources = $searchResults['sources'];
-        $confidence = $searchResults['confidence'];
-
-        // Create personalized response based on search results
-        if (empty($sources)) {
-            return "I understand you're looking for information about parenting and mental health. While I don't have specific resources that match your exact query right now, I recommend exploring our comprehensive parenting modules. You can find helpful information on child development, emotional intelligence, and positive parenting techniques. Would you like me to suggest some general resources or help you with a different topic?";
-        }
-
-        $response = "Based on our approved parenting and mental health resources, here's what I found relevant to your question:\n\n";
-
-        foreach (array_slice($sources, 0, 3) as $source) {
-            if ($source['type'] === 'module') {
-                $response .= "📚 **{$source['title']}**\n";
-                $response .= "This comprehensive module covers important aspects of parenting that relate to your question.\n\n";
-            } else {
-                $response .= "📖 **{$source['title']}** (from {$source['module_title']})\n";
-                $response .= "This content piece provides specific information that addresses your topic.\n\n";
-            }
-        }
-
-        if (count($sources) > 3) {
-            $response .= "And " . (count($sources) - 3) . " more relevant resources...\n\n";
-        }
-
-        $response .= "💡 **Recommendation**: I suggest starting with the most relevant module above. Each module is designed to provide comprehensive, evidence-based information to support your parenting journey.\n\n";
-
-        $response .= "Remember, while these resources provide valuable information, they're not a substitute for professional mental health advice. If you're dealing with specific mental health concerns, please consult with a qualified healthcare professional.";
-
-        return $response;
-    }
-
-    private function extractKeywords($message)
-    {
-        // Simple keyword extraction - in production, use NLP library
-        $message = strtolower($message);
-
-        // Common parenting and mental health keywords
-        $keywords = [
-            'anxiety', 'depression', 'stress', 'parenting', 'child', 'baby', 'toddler',
-            'development', 'behavior', 'discipline', 'emotion', 'mental health',
-            'sleep', 'feeding', 'development', 'milestone', 'tantrum', 'crying',
-            'attachment', 'bonding', 'communication', 'social skills', 'learning'
-        ];
-
-        $foundKeywords = [];
-        foreach ($keywords as $keyword) {
-            if (strpos($message, $keyword) !== false) {
-                $foundKeywords[] = $keyword;
-            }
-        }
-
-        // Also extract words that are likely to be important
-        $words = str_word_count($message, 1);
-        foreach ($words as $word) {
-            if (strlen($word) > 4) { // Longer words are likely more specific
-                $foundKeywords[] = $word;
-            }
-        }
-
-        return array_unique($foundKeywords);
-    }
-
-    private function calculateRelevance($keyword, $resource)
-    {
-        $score = 0;
-        $keyword = strtolower($keyword);
-
-        // Check title relevance
-        if (isset($resource->title) && strpos(strtolower($resource->title), $keyword) !== false) {
-            $score += 0.4;
-        }
-
-        // Check description relevance
-        if (isset($resource->description) && strpos(strtolower($resource->description), $keyword) !== false) {
-            $score += 0.3;
-        }
-
-        // Check tags relevance
-        if (isset($resource->tags) && is_array($resource->tags)) {
-            foreach ($resource->tags as $tag) {
-                if (strpos(strtolower($tag), $keyword) !== false) {
-                    $score += 0.3;
-                    break;
+            $chunks = $query->limit(5)->get();
+            $context = $chunks->pluck('text')->implode('\n---\n');
+        } else {
+            // Semantic search: fetch indexed chunks and compute cosine similarity in PHP
+            $candidates = DocumentChunk::whereNotNull('embedding')->where('indexed', true)->limit(1000)->get();
+            $scores = [];
+            foreach ($candidates as $c) {
+                $emb = $c->embedding ?? null;
+                if (is_array($emb) && count($emb) > 0) {
+                    $score = $this->cosineSimilarity($qEmbedding, $emb);
+                    $scores[] = ['chunk' => $c, 'score' => $score];
                 }
             }
+
+            usort($scores, fn($a,$b) => $b['score'] <=> $a['score']);
+            $top = array_slice($scores, 0, 5);
+
+            $context = collect($top)->pluck('chunk')->map(fn($c) => $c->text . "\n(Source: " . ($c->document->original_name ?? $c->document->filename) . ")")->implode('\n---\n');
         }
 
-        return min(1.0, $score);
+        // Use LLM to generate final answer from query + context
+        $llm = new LlmService();
+        $answer = $llm->generateAnswer($q, $context);
+
+        $reply = $answer ?? "I found the following relevant excerpts:\n" . $context . "\n\nYou asked: {$q}\nReply: (fallback)";
+
+        return response()->json(['reply' => $reply]);
     }
 
-    private function generateAudioFile($text, $messageId)
+    protected function cosineSimilarity(array $a, array $b): float
     {
-        // In production, integrate with a TTS service like:
-        // - Google Text-to-Speech
-        // - Amazon Polly
-        // - Azure Speech Services
-        // - ElevenLabs
-
-        // For now, we'll simulate audio generation
-        // You would replace this with actual TTS API calls
-
-        try {
-            // Simulate audio file generation
-            $filename = 'audio_' . $messageId . '_' . time() . '.mp3';
-            $path = 'ai-chat/audio/' . $filename;
-
-            // In production, this would be the actual TTS API call
-            // For demo purposes, we'll just return a placeholder URL
-            $audioUrl = '/storage/' . $path;
-
-            return $audioUrl;
-        } catch (\Exception $e) {
-            \Log::error('Audio generation failed: ' . $e->getMessage());
-            return null;
+        $dot = 0.0; $na = 0.0; $nb = 0.0;
+        $len = min(count($a), count($b));
+        for ($i=0;$i<$len;$i++) {
+            $dot += ($a[$i] * $b[$i]);
+            $na += ($a[$i] * $a[$i]);
+            $nb += ($b[$i] * $b[$i]);
         }
+        if ($na == 0 || $nb == 0) return 0.0;
+        return $dot / (sqrt($na) * sqrt($nb));
     }
 }

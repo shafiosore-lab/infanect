@@ -1,0 +1,37 @@
+{
+  "lesson": {
+    "external_id": "lesson_bedtime_01",
+    "title": "Bedtime Routines Made Easy",
+    "summary": "A short, science-backed 20-minute bedtime routine for caregivers of 2–6 year olds.",
+    "target_age_min": 2,
+    "target_age_max": 6,
+    "tags": ["bedtime", "routines", "sleep", "toddlers"],
+    "mood_triggers": ["Tired", "Stressed", "Curious"],
+    "source_pdf_id": "sp_123_sleep_guide.pdf",
+    "created_at": "2025-01-01 00:00:00",
+    "updated_at": "2025-01-01 00:00:00"
+  },
+  "media_assets": [
+    {
+      "type": "audio",
+      "url": "/media/lesson_bedtime_01/audio.mp3",
+      "duration_seconds": 210,
+      "language": "en",
+      "generated_at": "2025-01-01 00:00:00"
+    },
+    {
+      "type": "video",
+      "url": "/media/lesson_bedtime_01/video.mp4",
+      "duration_seconds": 270,
+      "language": "en",
+      "generated_at": "2025-01-01 00:00:00"
+    },
+    {
+      "type": "thumbnail",
+      "url": "/media/lesson_bedtime_01/thumb.png",
+      "duration_seconds": 0,
+      "language": "",
+      "generated_at": "2025-01-01 00:00:00"
+    }
+  ]
+}

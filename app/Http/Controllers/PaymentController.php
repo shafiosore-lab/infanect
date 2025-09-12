@@ -3,257 +3,143 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Booking;
-use App\Models\Transaction;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redirect;
+use Barryvdh\DomPDF\Facades\Pdf; // Ensure barryvdh/laravel-dompdf is installed
 
 class PaymentController extends Controller
 {
     /**
-     * Supported currencies and conversion rates relative to base currency (KES).
-     * In real application, you might fetch rates from an API.
+     * Show checkout and/or redirect to gateway checkout flow.
      */
-    private $currencies = [
-        'KES' => 1,        // Base currency
-        'USD' => 0.0071,
-        'EUR' => 0.0065,
-        'GBP' => 0.0055,
-    ];
-
-    /**
-     * Show payment form for a booking.
-     */
-    public function create(Booking $booking)
+    public function checkout(Request $request, $bookingId, $gateway = null)
     {
-        $this->authorizeBooking($booking);
+        $booking = \App\Models\Booking::with('service','provider','client')->findOrFail($bookingId);
 
-        if ($booking->amount_paid >= $booking->amount) {
-            return redirect()->route('bookings.show', $booking)
-                             ->with('info', 'This booking is already fully paid.');
+        // If gateway specified, start gateway-specific flow
+        if ($gateway) {
+            $gateway = strtolower($gateway);
+
+            try {
+                if ($gateway === 'stripe') {
+                    $svc = new \App\Services\Payment\StripeService();
+                    $sessionUrl = $svc->createCheckoutSession($booking);
+                    return Redirect::to($sessionUrl);
+                }
+
+                if ($gateway === 'paypal') {
+                    $svc = new \App\Services\Payment\PayPalService();
+                    $approveUrl = $svc->createOrder($booking);
+                    return Redirect::to($approveUrl);
+                }
+
+                if ($gateway === 'mpesa') {
+                    $svc = new \App\Services\Payment\MpesaService();
+                    $resp = $svc->initiatePayment($booking);
+                    // Mpesa flow may return instructions or short code response
+                    return view('payments.mpesa-instructions', compact('booking','resp'));
+                }
+            } catch (\Exception $e) {
+                Log::error('Payment gateway checkout failed: '.$e->getMessage());
+                return back()->withErrors(['payment' => 'Payment gateway initiation failed.']);
+            }
         }
 
-        return view('payments.create', compact('booking'));
+        // Otherwise show generic checkout page with options
+        return view('payments.checkout', compact('booking'));
     }
 
     /**
-     * Store payment and handle different payment methods with currency conversion.
+     * Generic webhook endpoint that dispatches to provider handlers.
      */
-    public function store(Request $request, Booking $booking)
+    public function webhook(Request $request)
     {
-        $this->authorizeBooking($booking);
+        $source = $request->header('X-Payment-Source') ?? $request->input('source') ?? 'unknown';
+        $source = strtolower($source);
 
-        $request->validate([
-            'payment_method' => 'required|in:mpesa,card,bank',
-            'currency' => 'required|in:' . implode(',', array_keys($this->currencies)),
-            'phone_number' => 'required_if:payment_method,mpesa|string|max:15',
-            'amount' => 'required|numeric|min:0.01',
-        ]);
+        try {
+            if ($source === 'stripe') {
+                return $this->stripeWebhook($request);
+            }
 
-        // Convert amount to base currency (KES) for consistency
-        $amountInKES = $request->amount / $this->currencies[$request->currency];
+            if ($source === 'paypal') {
+                return $this->paypalWebhook($request);
+            }
 
-        // Ensure payment does not exceed remaining balance
-        $remaining = $booking->amount - $booking->amount_paid;
-        if ($amountInKES > $remaining) {
-            return back()->withErrors(['amount' => 'Amount exceeds remaining balance.']);
+            if ($source === 'mpesa') {
+                return $this->mpesaWebhook($request);
+            }
+        } catch (\Exception $e) {
+            Log::error('Webhook handling error: '.$e->getMessage());
+            return response('error', 500);
         }
 
-        switch ($request->payment_method) {
-            case 'mpesa':
-                $transactionRef = 'MPESA_' . time() . '_' . rand(1000, 9999);
-                $transaction = $this->createTransaction($booking, $amountInKES, $request->currency, 'mpesa', $transactionRef);
-                $this->simulateMpesaPayment($transaction, $booking, $amountInKES);
-                return redirect()->route('payments.confirm', ['booking' => $booking, 'transaction' => $transaction])
-                                 ->with('success', 'Payment initiated. Enter the M-Pesa confirmation code.');
-
-            case 'card':
-                $transactionRef = 'CARD_' . time() . '_' . rand(1000, 9999);
-                $transaction = $this->createTransaction($booking, $amountInKES, $request->currency, 'card', $transactionRef, 'completed');
-                $this->applyPayment($booking, $amountInKES);
-                return redirect()->route('bookings.show', $booking)
-                                 ->with('success', 'Payment completed successfully!');
-
-            case 'bank':
-                $transactionRef = 'BANK_' . time() . '_' . rand(1000, 9999);
-                $transaction = $this->createTransaction($booking, $amountInKES, $request->currency, 'bank', $transactionRef);
-                return redirect()->route('bookings.show', $booking)
-                                 ->with('success', 'Bank transfer initiated. Payment will be confirmed within 24 hours.');
-        }
+        return response('ok');
     }
 
-    /**
-     * Confirm M-Pesa payment using user input code.
-     */
-    public function confirm(Request $request, Booking $booking, Transaction $transaction)
+    protected function stripeWebhook(Request $request)
     {
-        $this->authorizeBooking($booking);
+        // Example: verify event using stripe-php and handle checkout.session.completed
+        try {
+            $payload = $request->getContent();
+            $sigHeader = $request->header('Stripe-Signature');
 
-        if ($request->isMethod('post')) {
-            $request->validate(['confirmation_code' => 'required|string|size:6']);
-
-            if (preg_match('/^\d{6}$/', $request->confirmation_code)) {
-                $transaction->update(['status' => 'completed']);
-                $this->applyPayment($booking, $transaction->amount);
-
-                return redirect()->route('bookings.show', $booking)
-                                 ->with('success', 'Payment confirmed successfully!');
+            // Use Stripe SDK to verify event if available
+            if (class_exists('\Stripe\Webhook')) {
+                \Stripe\Stripe::setApiKey(config('services.stripe.secret'));
+                $event = \Stripe\Webhook::constructEvent($payload, $sigHeader, config('services.stripe.webhook_secret'));
             } else {
-                return back()->with('error', 'Invalid confirmation code. Please try again.');
+                $event = json_decode($payload, true);
             }
-        }
 
-        return view('payments.confirm', compact('booking', 'transaction'));
-    }
+            $type = is_array($event) ? ($event['type'] ?? null) : ($event->type ?? null);
 
-    /**
-     * Payment history for user or provider.
-     */
-    public function history()
-    {
-        $user = auth()->user();
-
-        $transactions = Transaction::whereHas('bookings', fn($q) => $q->where('user_id', $user->id))
-                                   ->orWhereIn('provider_id', fn($sub) => $sub->select('provider_id')
-                                                                                ->from('bookings')
-                                                                                ->where('user_id', $user->id))
-                                   ->orderBy('created_at', 'desc')
-                                   ->paginate(10);
-
-        return view('payments.history', compact('transactions'));
-    }
-
-    /**
-     * Handle M-Pesa STK callback.
-     */
-    public function mpesaCallback(Request $request)
-    {
-        $data = $request->all();
-        $checkoutRequestID = $data['Body']['stkCallback']['CheckoutRequestID'] ?? null;
-        $resultCode = $data['Body']['stkCallback']['ResultCode'] ?? 1;
-
-        if ($checkoutRequestID && $resultCode == 0) {
-            $amount = $data['Body']['stkCallback']['CallbackMetadata']['Item'][0]['Value'] ?? 0;
-            $mpesaReceipt = $data['Body']['stkCallback']['CallbackMetadata']['Item'][1]['Value'] ?? null;
-
-            $booking = Booking::where('transaction_id', $checkoutRequestID)->first();
-            if ($booking) {
-                $booking->update([
-                    'status' => 'confirmed',
-                    'amount_paid' => $amount,
-                    'transaction_id' => $mpesaReceipt,
-                ]);
+            if ($type === 'checkout.session.completed' || $type === 'payment_intent.succeeded') {
+                // Map session -> payment -> booking and mark completed
+                // This requires storing gateway identifiers on Payment->meta when creating the session
+                // Placeholder: log and return
+                Log::info('Stripe event received: '.$type);
             }
-        }
 
-        return response()->json(['success' => true]);
-    }
-
-    /**
-     * Helper: Authorize that the current user owns the booking.
-     */
-    private function authorizeBooking(Booking $booking)
-    {
-        if ($booking->user_id !== auth()->id()) {
-            abort(403);
+            return response('ok');
+        } catch (\Exception $e) {
+            Log::error('Stripe webhook error: '.$e->getMessage());
+            return response('error', 500);
         }
     }
 
-    /**
-     * Helper: Create a transaction.
-     */
-    private function createTransaction(Booking $booking, $amount, $currency, $method, $reference, $status = 'pending')
+    protected function paypalWebhook(Request $request)
     {
-        return Transaction::create([
-            'provider_id' => $booking->provider_id,
-            'transaction_type' => 'booking_payment',
-            'amount' => $amount,
-            'currency_code' => $currency,
-            'payment_method' => $method,
-            'transaction_reference' => $reference,
-            'status' => $status,
-        ]);
+        // Placeholder for PayPal IPN / Webhook handling
+        Log::info('PayPal webhook payload: '.json_encode($request->all()));
+        return response('ok');
+    }
+
+    protected function mpesaWebhook(Request $request)
+    {
+        // Placeholder for Mpesa webhook handling
+        Log::info('Mpesa webhook payload: '.json_encode($request->all()));
+        return response('ok');
     }
 
     /**
-     * Helper: Apply payment to booking and update status.
+     * Generate PDF receipt for a payment.
      */
-    private function applyPayment(Booking $booking, $amount)
+    public function receipt($paymentId)
     {
-        $booking->increment('amount_paid', $amount);
+        $payment = \App\Models\Payment::with('booking.service','booking.provider','booking.client')->findOrFail($paymentId);
+        $booking = $payment->booking;
 
-        if ($booking->amount_paid >= $booking->amount) {
-            $booking->update(['status' => 'confirmed']);
-        }
-    }
+        $viewData = compact('payment','booking');
 
-    /**
-     * Process payment for booking (alternative method).
-     */
-    public function processPayment(Request $request, Booking $booking)
-    {
-        $this->authorizeBooking($booking);
-
-        $request->validate([
-            'payment_method' => 'required|in:mpesa,card,bank',
-            'currency' => 'required|in:' . implode(',', array_keys($this->currencies)),
-            'phone_number' => 'required_if:payment_method,mpesa|string|max:15',
-            'amount' => 'required|numeric|min:0.01',
-        ]);
-
-        // Convert amount to base currency (KES) for consistency
-        $amountInKES = $request->amount / $this->currencies[$request->currency];
-
-        // Ensure payment does not exceed remaining balance
-        $remaining = $booking->amount - $booking->amount_paid;
-        if ($amountInKES > $remaining) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Amount exceeds remaining balance.'
-            ], 422);
+        // Use Dompdf via barryvdh/laravel-dompdf if available
+        if (class_exists(Pdf::class)) {
+            $pdf = Pdf::loadView('payments.receipt', $viewData);
+            $filename = 'receipt_'.$payment->id.'.pdf';
+            return $pdf->download($filename);
         }
 
-        switch ($request->payment_method) {
-            case 'mpesa':
-                $transactionRef = 'MPESA_' . time() . '_' . rand(1000, 9999);
-                $transaction = $this->createTransaction($booking, $amountInKES, $request->currency, 'mpesa', $transactionRef);
-                $this->simulateMpesaPayment($transaction, $booking, $amountInKES);
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Payment initiated successfully.',
-                    'transaction' => $transaction
-                ]);
-
-            case 'card':
-                $transactionRef = 'CARD_' . time() . '_' . rand(1000, 9999);
-                $transaction = $this->createTransaction($booking, $amountInKES, $request->currency, 'card', $transactionRef, 'completed');
-                $this->applyPayment($booking, $amountInKES);
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Payment completed successfully.',
-                    'transaction' => $transaction
-                ]);
-
-            case 'bank':
-                $transactionRef = 'BANK_' . time() . '_' . rand(1000, 9999);
-                $transaction = $this->createTransaction($booking, $amountInKES, $request->currency, 'bank', $transactionRef);
-                return response()->json([
-                    'success' => true,
-                    'message' => 'Bank transfer initiated successfully.',
-                    'transaction' => $transaction
-                ]);
-        }
-    }
-
-    /**
-     * Simulate M-Pesa payment (for demo purposes only).
-     */
-    private function simulateMpesaPayment(Transaction $transaction, Booking $booking, $amount)
-    {
-        \Log::info('M-Pesa payment initiated', [
-            'transaction_id' => $transaction->id,
-            'booking_id' => $booking->id,
-            'amount' => $amount,
-            'phone' => $booking->customer_phone ?? 'N/A',
-        ]);
+        // Fallback: render HTML and force download as .html
+        return response()->view('payments.receipt', $viewData)->header('Content-Type', 'text/html');
     }
 }

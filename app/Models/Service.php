@@ -4,26 +4,25 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Service extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
+        'provider_id',
         'name',
+        'category',
         'description',
         'price',
-        'currency',        // 🌍 Currency for global pricing
-        'duration',        // Duration of service (in minutes/hours)
-        'code',            // Optional unique code for international use
-        'country',         // Country availability
-        'language',        // Default language of service
-        'is_active',       // Enable/disable service
+        'currency',
+        'duration_minutes',
+        'availability',
+        'attachments',
+        'is_active',
         'is_approved',     // Approval status
         'image',           // Optional service image/banner
         'category_id',     // FK -> Category
-        'provider_id',     // FK -> ServiceProvider
         'tenant_id',       // FK -> Tenant for multi-tenant SaaS
         'metadata',        // Flexible JSON storage
     ];
@@ -32,6 +31,8 @@ class Service extends Model
         'is_active' => 'boolean',
         'metadata'  => 'array',
         'price'     => 'decimal:2',
+        'availability' => 'array',
+        'attachments' => 'array',
     ];
 
     /**
@@ -55,6 +56,14 @@ class Service extends Model
     public function bookings()
     {
         return $this->hasMany(Booking::class);
+    }
+
+    // Scope: only services that belong to providers who are professional
+    public function scopeOfferedByProfessional($query)
+    {
+        return $query->whereHas('provider', function($q){
+            $q->where('status', 'approved')->where('category', 'Professional')->orWhere('type','provider-professional');
+        });
     }
 
     /**
@@ -126,5 +135,67 @@ class Service extends Model
     public function getStatusLabelAttribute()
     {
         return $this->is_active ? __('Active') : __('Inactive');
+    }
+
+    /**
+     * Return available time slots for a given date using simple availability rules stored in availability JSON.
+     * This is a basic implementation; you may expand to recurring rules, exceptions, and timezones.
+     */
+    public function availableSlots(string $date, ?string $outputTimezone = null): array
+    {
+        $duration = $this->duration_minutes ?? 60;
+        $availability = $this->availability ?? [];
+
+        // Map weekday keys
+        $dayKey = strtolower(Carbon::parse($date)->format('D'));
+        $dayName = strtolower(Carbon::parse($date)->format('l'));
+
+        $ranges = $availability[$dayKey] ?? $availability[$dayName] ?? [];
+
+        $slots = [];
+
+        if (empty($ranges) || !is_array($ranges)) return $slots;
+
+        foreach ($ranges as $range) {
+            if (!str_contains($range, '-')) continue;
+
+            [$startTime, $endTime] = explode('-', $range);
+            $cursor = Carbon::createFromFormat('Y-m-d H:i', $date.' '.trim($startTime), config('app.timezone'));
+            $endTimeObj = Carbon::createFromFormat('Y-m-d H:i', $date.' '.trim($endTime), config('app.timezone'));
+
+            while ($cursor->lt($endTimeObj)) {
+                $slotEnd = (clone $cursor)->addMinutes($duration);
+                if ($slotEnd->gt($endTimeObj)) break;
+
+                // Check overlapping bookings in UTC to be safe
+                $cursorUtc = $cursor->copy()->setTimezone('UTC');
+                $slotEndUtc = $slotEnd->copy()->setTimezone('UTC');
+
+                $exists = $this->bookings()->where('status', '!=', 'canceled')
+                    ->where(function($q) use ($cursorUtc, $slotEndUtc) {
+                        $q->whereBetween('start_at', [$cursorUtc->toDateTimeString(), $slotEndUtc->toDateTimeString()])
+                          ->orWhereBetween('end_at', [$cursorUtc->toDateTimeString(), $slotEndUtc->toDateTimeString()])
+                          ->orWhere(function($q2) use ($cursorUtc, $slotEndUtc) {
+                              $q2->where('start_at', '<=', $cursorUtc->toDateTimeString())->where('end_at', '>=', $slotEndUtc->toDateTimeString());
+                          });
+                    })->exists();
+
+                if (!$exists) {
+                    $startOut = $cursor->copy();
+                    $endOut = $slotEnd->copy();
+
+                    if ($outputTimezone) {
+                        $startOut = $startOut->setTimezone($outputTimezone);
+                        $endOut = $endOut->setTimezone($outputTimezone);
+                    }
+
+                    $slots[] = ['start' => $startOut->toDateTimeString(), 'end' => $endOut->toDateTimeString()];
+                }
+
+                $cursor->addMinutes($duration);
+            }
+        }
+
+        return $slots;
     }
 }

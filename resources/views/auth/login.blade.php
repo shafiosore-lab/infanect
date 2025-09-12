@@ -56,6 +56,12 @@
                 </button>
             </div>
         </form>
+
+        <div class="mt-4">
+            <a href="{{ route('register') }}" class="text-indigo-600">Register as Parent</a>
+            <span class="mx-2">|</span>
+            <a href="{{ route('provider.register') }}" class="text-indigo-600">Apply as Provider</a>
+        </div>
     </div>
 </div>
 @endsection

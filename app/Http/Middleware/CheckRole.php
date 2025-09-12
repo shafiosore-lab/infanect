@@ -8,6 +8,14 @@ use Symfony\Component\HttpFoundation\Response;
 
 class CheckRole
 {
+    /**
+     * Handle an incoming request.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @param  \Closure  $next
+     * @param  mixed ...$roles
+     * @return \Symfony\Component\HttpFoundation\Response
+     */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
         if (!auth()->check()) {
@@ -23,16 +31,19 @@ class CheckRole
 
         // Map legacy role names to new ones for backward compatibility
         $roleMappings = [
-            'admin' => 'super-admin',
-            'manager' => 'super-admin',
-            'provider' => 'service-provider', // This might need to be more specific
+            'admin'    => 'super-admin',
+            'manager'  => 'super-admin',
+            'provider' => 'service-provider',
+            'employee' => 'staff', // Example additional mapping
         ];
 
-        $mappedRoles = array_map(function($role) use ($roleMappings) {
-            return $roleMappings[$role] ?? $role;
-        }, $roles);
+        // Map requested roles
+        $mappedRoles = array_map(fn($role) => $roleMappings[$role] ?? $role, $roles);
 
-        if (in_array($user->role->slug, $mappedRoles)) {
+        // If user has multiple roles, check intersection
+        $userRoles = is_array($user->role) ? $user->role : [$user->role->slug];
+
+        if (count(array_intersect($mappedRoles, $userRoles)) > 0) {
             return $next($request);
         }
 

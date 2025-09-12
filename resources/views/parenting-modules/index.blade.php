@@ -1,253 +1,294 @@
 {{-- resources/views/parenting-modules/index.blade.php --}}
 @extends('layouts.app')
 
-@section('title', 'Parenting Modules')
+@section('title', __('parenting.modules_title'))
 
 @section('content')
-<div class="container mx-auto p-6">
-    <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">Parenting Modules</h1>
-        <p class="mt-2 text-gray-600">Learn and grow with our comprehensive parenting resources</p>
-    </div>
+<style>
+    @keyframes floaty { 0% { transform: translateY(0px); } 50% { transform: translateY(-6px); } 100% { transform: translateY(0px); } }
+    .floaty { animation: floaty 4s ease-in-out infinite; }
+    .pulse-slow { animation: pulse 2.5s cubic-bezier(.4,0,.6,1) infinite; }
+</style>
 
-    <!-- Search and Filters -->
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-        <form method="GET" action="{{ route('parenting-modules.index') }}" class="space-y-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <!-- Search -->
-                <div class="md:col-span-2">
-                    <label for="search" class="block text-sm font-medium text-gray-700">Search</label>
-                    <input type="text" name="search" id="search" value="{{ $request->search }}"
-                           class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="Search modules...">
-                </div>
+{{-- Make outer wrapper respect locale direction and fill dashboard height --}}
+<div dir="{{ in_array(app()->getLocale(), ['ar','he','fa']) ? 'rtl' : 'ltr' }}" class="w-full min-h-screen flex flex-col">
+    <main lang="{{ app()->getLocale() }}" class="flex-1 w-full px-4 md:px-6 py-6">
+        <div class="mx-auto max-w-7xl">
+            <!-- Hero (top row) -->
+            <div class="rounded-2xl p-6 md:p-8 bg-gradient-to-r from-emerald-600 to-teal-500 text-white mb-6 shadow-lg relative overflow-hidden">
+                <div class="absolute -right-24 -top-24 opacity-20 transform rotate-45 w-72 h-72 bg-white rounded-full"></div>
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1 pr-4">
+                        <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight">{{ __('parenting.modules_title') }}</h1>
+                        <p class="mt-2 text-base md:text-lg text-white/90 max-w-2xl">{{ __('parenting.modules_subtitle') }}</p>
 
-                <!-- Category Filter -->
-                <div>
-                    <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
-                    <select name="category" id="category"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">All Categories</option>
-                        @foreach($categories as $cat)
-                            <option value="{{ $cat }}" {{ $request->category == $cat ? 'selected' : '' }}>
-                                {{ ucfirst($cat) }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <!-- Difficulty Filter -->
-                <div>
-                    <label for="difficulty" class="block text-sm font-medium text-gray-700">Difficulty</label>
-                    <select name="difficulty" id="difficulty"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">All Levels</option>
-                        @foreach($difficulties as $diff)
-                            <option value="{{ $diff }}" {{ $request->difficulty == $diff ? 'selected' : '' }}>
-                                {{ ucfirst($diff) }}
-                            </option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-
-            <!-- Sort Options -->
-            <div class="flex flex-wrap gap-4 items-end">
-                <div>
-                    <label for="sort" class="block text-sm font-medium text-gray-700">Sort by</label>
-                    <select name="sort" id="sort"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                        <option value="created_at" {{ $request->sort == 'created_at' ? 'selected' : '' }}>Newest</option>
-                        <option value="title" {{ $request->sort == 'title' ? 'selected' : '' }}>Title</option>
-                        <option value="rating" {{ $request->sort == 'rating' ? 'selected' : '' }}>Rating</option>
-                        <option value="duration" {{ $request->sort == 'duration' ? 'selected' : '' }}>Duration</option>
-                        <option value="popularity" {{ $request->sort == 'popularity' ? 'selected' : '' }}>Popularity</option>
-                    </select>
-                </div>
-
-                <div>
-                    <select name="order" id="order"
-                            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                        <option value="desc" {{ $request->order == 'desc' ? 'selected' : '' }}>Descending</option>
-                        <option value="asc" {{ $request->order == 'asc' ? 'selected' : '' }}>Ascending</option>
-                    </select>
-                </div>
-
-                <button type="submit"
-                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                    </svg>
-                    Search
-                </button>
-
-                @if($request->hasAny(['search', 'category', 'difficulty', 'sort']))
-                    <a href="{{ route('parenting-modules.index') }}"
-                       class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                        Clear Filters
-                    </a>
-                @endif
-            </div>
-        </form>
-    </div>
-
-    <!-- Modules Grid -->
-    @if($modules->count() > 0)
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            @foreach($modules as $module)
-                <div class="bg-white shadow rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
-                    <div class="p-6">
-                        <!-- Module Header -->
-                        <div class="flex items-start justify-between mb-4">
-                            <div class="flex-1">
-                                <h3 class="text-lg font-semibold text-gray-900 mb-2">
-                                    <a href="{{ route('parenting-modules.show', $module) }}"
-                                       class="hover:text-blue-600">{{ $module->title }}</a>
-                                </h3>
-                                <div class="flex items-center space-x-2 text-sm text-gray-500">
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        {{ ucfirst($module->category) }}
-                                    </span>
-                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        {{ ucfirst($module->difficulty_level) }}
-                                    </span>
-
-                                </div>
-                            </div>
-
-                        </div>
-
-                        <!-- Description -->
-                        <p class="text-gray-600 text-sm mb-4 line-clamp-3">{{ $module->description }}</p>
-
-                        <!-- Stats -->
-                        <div class="flex items-center justify-between text-sm text-gray-500 mb-4">
-                            <div class="flex items-center space-x-4">
-                                <div class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
-                                    {{ $module->estimated_duration }} min
-                                </div>
-                                <div class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                                    </svg>
-                                    {{ number_format($module->view_count) }}
-                                </div>
-                            </div>
-                            @if($module->rating > 0)
-                                <div class="flex items-center">
-                                    <svg class="w-4 h-4 mr-1 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-                                    </svg>
-                                    {{ number_format($module->rating, 1) }}
-                                </div>
-                            @endif
-                        </div>
-
-                        <!-- Progress Bar (if user has progress) -->
-                        @php
-                            $userProgress = $userProgress[$module->id] ?? null;
-                        @endphp
-                        @if($userProgress)
-                            <div class="mb-4">
-                                <div class="flex items-center justify-between text-sm text-gray-600 mb-1">
-                                    <span>Progress</span>
-                                    <span>{{ $userProgress->progress_percentage }}%</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-blue-600 h-2 rounded-full" style="width: {{ $userProgress->progress_percentage }}%"></div>
-                                </div>
-                                <div class="text-xs text-gray-500 mt-1">
-                                    Status: {{ ucfirst(str_replace('_', ' ', $userProgress->status)) }}
-                                </div>
-                            </div>
-                        @endif
-
-                        <!-- Action Button -->
-                        <div class="flex items-center justify-between">
-                            <a href="{{ route('parenting-modules.show', $module) }}"
-                               class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                                @if($userProgress && $userProgress->status === 'completed')
-                                    Review
-                                @elseif($userProgress && $userProgress->status === 'in_progress')
-                                    Continue
-                                @else
-                                    Start Learning
-                                @endif
-                            </a>
-
-                            @if($userProgress)
-                                <button onclick="toggleFavorite({{ $module->id }})"
-                                        class="text-gray-400 hover:text-red-500 p-1"
-                                        id="favorite-btn-{{ $module->id }}">
-                                    <svg class="w-5 h-5 {{ $userProgress->is_favorited ? 'text-red-500 fill-current' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
-                                    </svg>
-                                </button>
-                            @endif
+                        <div class="mt-4 flex flex-wrap items-center gap-3">
+                            <a href="{{ route('start-learning.index') }}" class="inline-flex items-center px-4 py-2 bg-white text-emerald-700 font-semibold rounded-lg shadow-sm hover:scale-105 transform transition">{{ __('parenting.start_button') }}</a>
+                            <a href="{{ route('parenting-modules.index') }}" class="inline-flex items-center px-3 py-2 bg-white/10 text-white rounded-lg border border-white/20">{{ __('parenting.explore') }}</a>
                         </div>
                     </div>
-                </div>
-            @endforeach
-        </div>
 
-        <!-- Pagination -->
-        <div class="flex justify-center">
-            {{ $modules->appends(request()->query())->links() }}
-        </div>
-    @else
-        <!-- No modules found -->
-        <div class="bg-white shadow rounded-lg p-12 text-center">
-            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-            </svg>
-            <h3 class="mt-2 text-sm font-medium text-gray-900">No modules found</h3>
-            <p class="mt-1 text-sm text-gray-500">
-                @if($request->hasAny(['search', 'category', 'difficulty']))
-                    Try adjusting your search criteria or clearing the filters.
-                @else
-                    Check back later for new parenting modules.
-                @endif
-            </p>
-            @if($request->hasAny(['search', 'category', 'difficulty']))
-                <div class="mt-6">
-                    <a href="{{ route('parenting-modules.index') }}"
-                       class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                        Clear Filters
-                    </a>
+                    <div class="flex-shrink-0 ml-2">
+                        {{-- Locale switcher for international users --}}
+                        @includeIf('layouts.partials.locale-switcher')
+                        @includeIf('layouts.partials.saved-lessons-dropdown')
+                    </div>
                 </div>
-            @endif
+
+                {{-- Inline Start Learning form visible on wide screens (keeps hero tidy) --}}
+                <div class="mt-6 hidden lg:block">
+                    <div class="bg-white/6 p-3 md:p-4 rounded-lg border border-white/10 inline-block">
+                        <form method="POST" action="{{ route('start-learning.play') }}" class="flex items-center gap-3">
+                            @csrf
+                            <label class="text-sm text-white/90 mr-2">{{ __('parenting.mood_prompt_title') }}</label>
+                            <select name="mood" class="rounded px-2 py-1 bg-white text-black">
+                                <option value="happy">{{ __('parenting.moods.happy') }}</option>
+                                <option value="stressed">{{ __('parenting.moods.stressed') }}</option>
+                                <option value="curious">{{ __('parenting.moods.curious') }}</option>
+                                <option value="tired">{{ __('parenting.moods.tired') }}</option>
+                            </select>
+                            <input name="interests" placeholder="{{ __('parenting.interests_placeholder') }}" class="px-2 py-1 rounded bg-white/5 text-white border border-white/10" />
+                            <button class="px-3 py-1 bg-emerald-500 text-white rounded">{{ __('parenting.start_button') }}</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calm Space: breathing exercise, coping strategies, crisis support -->
+            <div class="mb-6">
+                <div class="p-4 rounded-lg bg-white/95 text-black shadow-md flex items-center justify-between" role="region" aria-label="Calm Space">
+                    <div>
+                        <h2 class="text-lg font-bold">Calm Space</h2>
+                        <p class="text-sm text-gray-700">Short guided breathing and quick coping strategies to help you feel grounded before diving into a lesson.</p>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            <button id="open-breath" class="px-3 py-2 bg-emerald-600 text-white rounded-md">Take a 60s breathing exercise</button>
+                            <button id="toggle-coping" class="px-3 py-2 bg-white border text-black rounded-md">Quick coping strategies</button>
+                            <a href="{{ Route::has('resources.mental-health') ? route('resources.mental-health') : '/resources/mental-health' }}" class="px-3 py-2 bg-white/10 text-white rounded-md">More mental health resources</a>
+                        </div>
+                    </div>
+
+                    <div class="text-right text-sm">
+                        <div class="font-semibold">Need immediate help?</div>
+                        <div class="text-gray-700">If you're in crisis call your local emergency number or your country's crisis line.</div>
+                    </div>
+                </div>
+
+                <div id="coping-panel" class="mt-3 p-3 rounded-lg bg-white/90 text-black shadow-sm hidden" aria-hidden="true">
+                    <ul class="list-disc pl-5 text-sm">
+                        <li>5-4-3-2-1 grounding: name 5 things you see, 4 you can touch, 3 you hear, 2 you smell, 1 you taste.</li>
+                        <li>Take a walk or step outside for fresh air for 5 minutes.</li>
+                        <li>Use a calm, slow breath: inhale 4s — hold 4s — exhale 6s, repeat.</li>
+                        <li>Write one sentence about how you feel — no judgment.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Recommended badge CSS -->
+            <style>
+            .recommended { box-shadow: 0 6px 20px rgba(16, 185, 129, 0.18); border-color: #10b981; transform: translateY(-2px); }
+            .breath-circle { width:120px;height:120px;border-radius:9999px;background:linear-gradient(135deg,#34d399,#10b981);opacity:0.95;display:flex;align-items:center;justify-content:center;color:white;font-weight:600 }
+            </style>
+
+            <!-- Cards grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="p-4 rounded-lg bg-white border border-gray-200 shadow-sm h-full flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-2xl">🌙</div>
+                            <div>
+                                <h3 class="text-lg font-bold text-black">Bedtime Routines</h3>
+                                <p class="mt-1 text-sm text-black/70">A simple 3-step routine to help toddlers wind down tonight.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex gap-2">
+                            <a href="{{ route('start-learning.play.direct', ['externalId' => 'lesson_bedtime_01']) }}" class="inline-flex items-center px-3 py-2 bg-black text-white rounded-md">{{ __('parenting.bedtime.play') }}</a>
+                            <a href="#" class="inline-flex items-center px-3 py-2 bg-white text-black rounded-md">{{ __('parenting.bedtime.preview') }}</a>
+                        </div>
+                        <div class="text-xs text-black/60">{{ __('parenting.bedtime.duration') }}</div>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-lg bg-white border border-gray-200 shadow-sm h-full flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-2xl">😡</div>
+                            <div>
+                                <h3 class="text-lg font-bold text-black">{{ __('parenting.tantrums.title') }}</h3>
+                                <p class="mt-1 text-sm text-black/70">{{ __('parenting.tantrums.desc') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex gap-2">
+                            <a href="{{ route('start-learning.play.direct', ['externalId' => 'lesson_tantrums_01']) }}" class="inline-flex items-center px-3 py-2 bg-black text-white rounded-md">{{ __('parenting.tantrums.play') ?? __('parenting.bedtime.play') }}</a>
+                            <a href="#" class="inline-flex items-center px-3 py-2 bg-white text-black rounded-md">{{ __('parenting.tantrums.preview') }}</a>
+                        </div>
+                        <div class="text-xs text-black/60">{{ __('parenting.tantrums.duration') }}</div>
+                    </div>
+                </div>
+
+                <div class="p-4 rounded-lg bg-white border border-gray-200 shadow-sm h-full flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-start gap-3">
+                            <div class="w-12 h-12 bg-white rounded-lg flex items-center justify-center text-2xl">📱</div>
+                            <div>
+                                <h3 class="text-lg font-bold text-black">{{ __('parenting.screentime.title') }}</h3>
+                                <p class="mt-1 text-sm text-black/70">{{ __('parenting.screentime.desc') }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center justify-between">
+                        <div class="flex gap-2">
+                            <a href="{{ route('start-learning.play.direct', ['externalId' => 'lesson_screentime_01']) }}" class="inline-flex items-center px-3 py-2 bg-black text-white rounded-md">{{ __('parenting.screentime.play') ?? __('parenting.bedtime.play') }}</a>
+                            <a href="#" class="inline-flex items-center px-3 py-2 bg-white text-black rounded-md">{{ __('parenting.screentime.preview') }}</a>
+                        </div>
+                        <div class="text-xs text-black/60">{{ __('parenting.screentime.duration') }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Breathing modal -->
+            <div id="breath-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60" aria-hidden="true" role="dialog" aria-label="Breathing exercise">
+                <div class="bg-white rounded-xl p-6 max-w-md w-full text-center">
+                    <button id="breath-close" class="absolute top-4 right-4 bg-gray-100 p-2 rounded">✕</button>
+                    <h3 class="text-xl font-bold mb-2">60s Guided Breathing</h3>
+                    <p class="text-sm text-gray-700 mb-4">Follow the circle and the prompts. Pause anytime.</p>
+                    <div id="breath-visual" class="mx-auto mb-4">
+                        <div id="breath-circle" class="breath-circle" aria-hidden="true">Breathe</div>
+                    </div>
+                    <div id="breath-cue" class="text-lg font-medium mb-2">Get ready...</div>
+                    <div class="flex justify-center gap-3 mt-2">
+                        <button id="breath-start" class="px-4 py-2 bg-emerald-600 text-white rounded-md">Start</button>
+                        <button id="breath-stop" class="px-4 py-2 bg-gray-200 text-black rounded-md">Stop</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Preview modal for card videos -->
+            <div id="card-preview-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60">
+                <div class="relative w-full max-w-4xl mx-4">
+                    <div class="absolute top-2 right-2 z-20 flex gap-2">
+                        <button id="card-preview-fullscreen" class="bg-white rounded p-2">⤢</button>
+                        <button id="card-preview-close" class="bg-white rounded p-2">✕</button>
+                    </div>
+                    <video id="card-preview-video" class="w-full rounded" controls playsinline preload="metadata"></video>
+                </div>
+            </div>
+
+            <script>
+            (function(){
+                // Defensive DOM helpers
+                function byId(id){ return document.getElementById(id); }
+                function safeFetch(url, opts){ try { return fetch(url, opts).catch(()=>{}); } catch(e) { return Promise.resolve(); } }
+
+                // Toggle coping strategies
+                const toggleCopingBtn = byId('toggle-coping');
+                const copingPanel = byId('coping-panel');
+                if (toggleCopingBtn && copingPanel) {
+                    toggleCopingBtn.addEventListener('click', function(){
+                        const hidden = copingPanel.classList.contains('hidden');
+                        if (hidden) { copingPanel.classList.remove('hidden'); copingPanel.setAttribute('aria-hidden','false');
++                            safeFetch('{{ Route::has('calmspace.track') ? route('calmspace.track') : '#' }}', { method:'POST', credentials:'same-origin', headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json'}, body: JSON.stringify({type:'coping'}) });
+                         } else { copingPanel.classList.add('hidden'); copingPanel.setAttribute('aria-hidden','true'); }
+                     });
+                 }
+
+                // Breathing modal logic (defensive)
+                const modal = byId('breath-modal');
+                const startBtn = byId('breath-start');
+                const stopBtn = byId('breath-stop');
+                const closeBtn = byId('breath-close');
+                const cue = byId('breath-cue');
+                const circle = byId('breath-circle');
+                if (circle) circle.style.transition = 'transform 0.9s ease-in-out';
+                if (circle) circle.setAttribute('aria-hidden','true');
+
+                // only add one live region
+                if (!document.getElementById('calmspace-live')){
+                    const live = document.createElement('div'); live.id='calmspace-live'; live.setAttribute('aria-live','polite'); live.className='sr-only'; document.body.appendChild(live);
+                }
+
+                let intervalId, secondsLeft=60;
+
+                function openBreath(){
+                    if (!modal) return; modal.classList.remove('hidden'); modal.classList.add('flex');
+                    secondsLeft = 60; if (cue) cue.textContent = 'Get ready...'; if (circle) circle.style.transform='scale(1)';
+                    safeFetch('{{ Route::has('calmspace.track') ? route('calmspace.track') : '#' }}', { method:'POST', credentials:'same-origin', headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json'}, body: JSON.stringify({type:'breathing_open'}) });
+                }
+                function closeBreath(){ if (!modal) return; modal.classList.remove('flex'); modal.classList.add('hidden'); clearInterval(intervalId); if (cue) cue.textContent='Get ready...'; if (circle) circle.style.transform='scale(1)'; }
+
+                const openBtn = byId('open-breath'); if (openBtn) openBtn.addEventListener('click', openBreath);
+                if (closeBtn) closeBtn.addEventListener('click', closeBreath);
+                if (stopBtn) stopBtn.addEventListener('click', closeBreath);
+
+                if (startBtn) startBtn.addEventListener('click', function(){
+                    safeFetch('{{ Route::has('calmspace.track') ? route('calmspace.track') : '#' }}', { method:'POST', credentials:'same-origin', headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json'}, body: JSON.stringify({type:'breathing_start'}) });
+
+                    const cycle = [ {phase:'Inhale',dur:4,scale:1.3},{phase:'Hold',dur:4,scale:1.3},{phase:'Exhale',dur:6,scale:0.8} ];
+                    let elapsed=0; let cycleIndex=0; let phaseRemaining=cycle[0].dur;
+                    if (cue) cue.textContent = cycle[0].phase + ' — ' + phaseRemaining + 's'; if (circle) circle.style.transform = 'scale(' + cycle[0].scale + ')';
+                    const liveEl = document.getElementById('calmspace-live'); if (liveEl) liveEl.textContent = cycle[0].phase + ' ' + phaseRemaining + ' seconds';
+
+                    intervalId = setInterval(function(){
+                        elapsed++; secondsLeft--; phaseRemaining--;
+                        if (phaseRemaining <= 0) { cycleIndex = (cycleIndex+1) % cycle.length; phaseRemaining = cycle[cycleIndex].dur; if (circle) circle.style.transform = 'scale(' + cycle[cycleIndex].scale + ')'; }
+                        if (cue) cue.textContent = cycle[cycleIndex].phase + ' — ' + phaseRemaining + 's'; if (liveEl) liveEl.textContent = cycle[cycleIndex].phase + ' ' + phaseRemaining + ' seconds';
+                        if (secondsLeft <= 0) { clearInterval(intervalId); if (cue) cue.textContent='Done — well done'; if (liveEl) liveEl.textContent = 'Done — well done'; setTimeout(closeBreath,1200);
+                            safeFetch('{{ Route::has('calmspace.track') ? route('calmspace.track') : '#' }}', { method:'POST', credentials:'same-origin', headers: {'X-CSRF-TOKEN':'{{ csrf_token() }}','Content-Type':'application/json'}, body: JSON.stringify({type:'breathing_complete'}) });
+                        }
+                    }, 1000);
+                });
+
+                // Mood-based recommendation highlight from query param ?mood=stressed|happy|curious|tired
+                function getQueryParam(name){ const params = new URLSearchParams(location.search); return params.get(name); }
+                const map = { 'stressed':'tantrums', 'happy':'bedtime', 'tired':'bedtime', 'curious':'screentime' };
+                const mood = (getQueryParam('mood') || '').toLowerCase();
+                if (map[mood]){
+                    const slug = map[mood];
+                    document.querySelectorAll('.p-4.rounded-lg').forEach(card => {
+                        const txt = (card.textContent||'').toLowerCase();
+                        if (txt.includes(slug) || txt.includes(map[mood])) {
+                            card.classList.add('recommended');
+                            const firstDiv = card.querySelector('div');
+                            if (firstDiv) {
+                                const badge = document.createElement('div'); badge.className='text-xs text-emerald-700 font-semibold'; badge.textContent='Recommended'; firstDiv.appendChild(badge);
+                            }
+                        }
+                    });
+                }
+
+            })();
+            </script>
         </div>
-    @endif
+    </main>
 </div>
 
+{{-- keep existing prefetch script unchanged --}}
+@includeIf('parenting-modules.partials.prefetch')
+
+<!-- Remove any Privacy / Terms links or text on this page (best-effort) -->
 <script>
-function toggleFavorite(moduleId) {
-    fetch(`/parenting-modules/${moduleId}/favorite`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-        },
-        body: JSON.stringify({})
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const btn = document.getElementById(`favorite-btn-${moduleId}`);
-            const icon = btn.querySelector('svg');
-            if (data.is_favorited) {
-                icon.classList.add('text-red-500', 'fill-current');
-            } else {
-                icon.classList.remove('text-red-500', 'fill-current');
+(function(){
+    try {
+        const texts = ['privacy', 'terms'];
+        // hide anchors with privacy/terms in href or text
+        document.querySelectorAll('a').forEach(a => {
+            const href = (a.getAttribute('href') || '').toLowerCase();
+            const t = (a.textContent || '').toLowerCase();
+            if (texts.some(x => href.includes(x) || t.includes(x))) {
+                a.style.display = 'none';
             }
-        }
-    })
-    .catch(error => console.error('Error:', error));
-}
+        });
+        // hide any elements whose text content contains Privacy or Terms
+        document.querySelectorAll('body *').forEach(el => {
+            if (el.children.length === 0) {
+                const txt = (el.textContent || '').toLowerCase().trim();
+                if (texts.some(x => txt === x || txt.includes(x))) el.style.display = 'none';
+            }
+        });
+    } catch(e) { /* ignore */ }
+})();
 </script>
 @endsection

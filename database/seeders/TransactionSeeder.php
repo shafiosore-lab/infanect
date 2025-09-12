@@ -2,8 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class TransactionSeeder extends Seeder
 {
@@ -12,83 +13,47 @@ class TransactionSeeder extends Seeder
      */
     public function run(): void
     {
-        $transactions = [
-            [
-                'provider_id' => 1,
-                'transaction_type' => 'booking_payment',
-                'amount' => 150.00,
-                'currency_code' => 'USD',
-                'payment_method' => 'card',
-                'transaction_reference' => 'TXN_001_US',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 1,
-                'transaction_type' => 'booking_payment',
-                'amount' => 200.00,
-                'currency_code' => 'USD',
-                'payment_method' => 'paypal',
-                'transaction_reference' => 'TXN_002_US',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 2,
-                'transaction_type' => 'booking_payment',
-                'amount' => 5000.00,
-                'currency_code' => 'KES',
-                'payment_method' => 'mpesa',
-                'transaction_reference' => 'TXN_003_KE',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 2,
-                'transaction_type' => 'booking_payment',
-                'amount' => 3000.00,
-                'currency_code' => 'KES',
-                'payment_method' => 'card',
-                'transaction_reference' => 'TXN_004_KE',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 3,
-                'transaction_type' => 'booking_payment',
-                'amount' => 25000.00,
-                'currency_code' => 'JPY',
-                'payment_method' => 'card',
-                'transaction_reference' => 'TXN_005_JP',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 4,
-                'transaction_type' => 'booking_payment',
-                'amount' => 120.00,
-                'currency_code' => 'EUR',
-                'payment_method' => 'paypal',
-                'transaction_reference' => 'TXN_006_DE',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 5,
-                'transaction_type' => 'booking_payment',
-                'amount' => 8000.00,
-                'currency_code' => 'INR',
-                'payment_method' => 'card',
-                'transaction_reference' => 'TXN_007_IN',
-                'status' => 'completed',
-            ],
-            [
-                'provider_id' => 1,
-                'transaction_type' => 'refund',
-                'amount' => -50.00,
-                'currency_code' => 'USD',
-                'payment_method' => 'card',
-                'transaction_reference' => 'REF_001_US',
-                'status' => 'completed',
-            ],
+        if (! Schema::hasTable('transactions')) return;
+        if (! Schema::hasTable('providers')) return;
+
+        $provider = DB::table('providers')->inRandomOrder()->first();
+        if (! $provider || ! isset($provider->id)) return;
+        $providerId = $provider->id;
+
+        // Ensure provider still exists
+        if (! DB::table('providers')->where('id', $providerId)->exists()) return;
+
+        $samples = [
+            ['transaction_reference' => 'TXN_001_US', 'transaction_type' => 'booking_payment', 'amount' => 150, 'currency_code' => 'USD', 'payment_method' => 'card', 'status' => 'completed'],
+            ['transaction_reference' => 'TXN_002_AU', 'transaction_type' => 'booking_refund', 'amount' => 75, 'currency_code' => 'AUD', 'payment_method' => 'card', 'status' => 'refunded'],
+            ['transaction_reference' => 'TXN_003_KE', 'transaction_type' => 'booking_payment', 'amount' => 5000, 'currency_code' => 'KES', 'payment_method' => 'mpesa', 'status' => 'completed'],
         ];
 
-        foreach ($transactions as $transaction) {
-            \App\Models\Transaction::create($transaction);
+        foreach ($samples as $s) {
+            // Verify provider still exists before each insert
+            if (! DB::table('providers')->where('id', $providerId)->exists()) {
+                continue;
+            }
+
+            $row = [
+                'transaction_reference' => $s['transaction_reference'],
+                'provider_id' => $providerId,
+                'transaction_type' => $s['transaction_type'],
+                'amount' => $s['amount'],
+                'currency_code' => $s['currency_code'],
+                'payment_method' => $s['payment_method'],
+                'status' => $s['status'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+
+            try {
+                DB::table('transactions')->updateOrInsert([
+                    'transaction_reference' => $s['transaction_reference']
+                ], $row);
+            } catch (\Throwable $e) {
+                // ignore FK or other insert errors and continue
+            }
         }
     }
 }

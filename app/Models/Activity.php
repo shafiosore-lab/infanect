@@ -5,32 +5,31 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Activity extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
+        'provider_profile_id',
         'title',
-        'category',
-        'country',
-        'region',
-        'venue',
-        'datetime',
-        'price',
-        'slots',
-        'booking_link',
-        'tenant_id',
-        'provider_id',
-        'meta',
-        'is_approved',
         'description',
-        'duration',
-        'difficulty_level',
-        'target_audience',
+        'category',
+        'slots',
+        'images',
+        'is_approved',
+        'price',
+        'currency',
+        'duration_minutes',
+        'provider_id',
+        'location',
+        'meta'
     ];
 
     protected $casts = [
+        'slots' => 'array',
+        'images' => 'array',
         'datetime' => 'datetime',
         'meta' => 'array',
         'is_approved' => 'boolean',
@@ -39,14 +38,19 @@ class Activity extends Model
     ];
 
     // Relationships
-    public function provider()
+    public function provider(): BelongsTo
     {
-        return $this->belongsTo(ServiceProvider::class, 'provider_id');
+        return $this->belongsTo(Provider::class);
     }
 
     public function bookings()
     {
         return $this->hasMany(Booking::class);
+    }
+
+    public function providerProfile()
+    {
+        return $this->belongsTo(ProviderProfile::class);
     }
 
     // ======================
@@ -115,6 +119,13 @@ class Activity extends Model
         $sortBy = in_array($sortBy, $allowed) ? $sortBy : 'datetime';
         $direction = in_array(strtolower($direction), ['asc', 'desc']) ? $direction : 'asc';
         return $query->orderBy($sortBy, $direction);
+    }
+
+    public function scopeForBondingProviders($query)
+    {
+        return $query->whereHas('provider', function($q){
+            $q->where('category', 'Bonding')->orWhere('type', 'provider-bonding');
+        });
     }
 
     // ======================

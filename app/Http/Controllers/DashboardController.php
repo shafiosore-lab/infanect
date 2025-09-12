@@ -3,103 +3,188 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\User;
-use App\Models\Service;
-use App\Models\Booking;
-use App\Models\Provider;
-use App\Models\Review;
-use App\Models\Transaction;
-use App\Models\ServiceProvider;
-use App\Models\Activity;
-use App\Models\Approval;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
-class ProviderDashboardController extends Controller
+class DashboardController extends Controller
 {
     /**
-     * Redirect to appropriate provider dashboard
+     * Display the main dashboard
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = auth()->user();
+        $userId = $user->id ?? null;
 
-        if ($user->isServiceProvider()) {
-            return $this->serviceProviderDashboard();
+        if (!$userId) {
+            return redirect()->route('login');
         }
 
-        if ($user->isActivityProvider()) {
-            return $this->activityProviderDashboard();
-        }
+        $totalBookings = (int) DB::table('bookings')->where('user_id', $userId)->count();
+        $completedBookings = (int) DB::table('bookings')->where('user_id', $userId)->where('status', 'completed')->count();
+        $pendingBookings = (int) DB::table('bookings')->where('user_id', $userId)->where('status', 'pending')->count();
+        $totalSpent = (float) DB::table('bookings')->where('user_id', $userId)->where('status', 'completed')->sum('amount_paid');
 
-        return redirect()->route('dashboard')->with('error', 'Unauthorized access to provider dashboard.');
+        return view('dashboard', [
+            'totalBookings' => $totalBookings,
+            'completedBookings' => $completedBookings,
+            'pendingBookings' => $pendingBookings,
+            'totalSpent' => number_format($totalSpent, 2),
+            'header' => __('Dashboard'),
+            'message' => __("You're logged in!"),
+        ]);
     }
 
-    // ----------------- SERVICE PROVIDER DASHBOARD -----------------
-    private function serviceProviderDashboard()
+    /**
+     * Display wellness dashboard
+     */
+    public function wellness()
     {
         $user = auth()->user();
-        $provider = ServiceProvider::where('user_id', $user->id)->first();
 
-        if (!$provider) {
-            return redirect()->route('provider.register');
-        }
-
-        $stats = [
-            'total_services'    => Service::where('user_id', $user->id)->count(),
-            'active_services'   => Service::where('user_id', $user->id)->where('is_active', true)->count(),
-            'pending_approvals' => Approval::where('requestor_id', $user->id)->where('status', 'pending')->count(),
-            'total_bookings'    => Service::where('user_id', $user->id)->withCount('bookings')->get()->sum('bookings_count'),
-            'total_revenue'     => Booking::whereHas('service', fn($q) => $q->where('user_id', $user->id))
-                                          ->where('status', 'completed')
-                                          ->sum('amount_paid'),
-            'approved_services' => Service::where('user_id', $user->id)->where('is_active', true)->count(),
+        // Wellness-related data
+        $wellnessStats = [
+            'completed_modules' => 0, // This would come from user progress tracking
+            'current_streak' => 0,
+            'total_activities' => Activity::count(),
+            'favorite_category' => 'Wellness', // This would be calculated
         ];
 
-        $recentServices = Service::where('user_id', $user->id)
-                                 ->orderBy('created_at', 'desc')
-                                 ->limit(5)
-                                 ->get();
-
-        $pendingApprovals = Approval::where('requestor_id', $user->id)
-                                    ->where('status', 'pending')
-                                    ->with('entity')
-                                    ->limit(5)
-                                    ->get();
-
-        return view('dashboards.provider-service', compact('stats', 'recentServices', 'pendingApprovals', 'provider'));
+        return view('dashboard.wellness', compact('wellnessStats'));
     }
 
-    // ----------------- ACTIVITY PROVIDER DASHBOARD -----------------
-    private function activityProviderDashboard()
+    /**
+     * Get weekly engagement data
+     */
+    public function weeklyEngagement()
     {
         $user = auth()->user();
-        $provider = ServiceProvider::where('user_id', $user->id)->first();
 
-        if (!$provider) {
-            return redirect()->route('provider.register');
-        }
-
-        $stats = [
-            'total_activities'    => Activity::where('provider_id', $provider->id)->count(),
-            'active_activities'   => Activity::where('provider_id', $provider->id)->where('is_approved', true)->count(),
-            'pending_approvals'   => Approval::where('requestor_id', $user->id)->where('status', 'pending')->count(),
-            'total_bookings'      => Activity::where('provider_id', $provider->id)->withCount('bookings')->get()->sum('bookings_count'),
-            'total_revenue'       => Booking::whereHas('activity', fn($q) => $q->where('provider_id', $provider->id))
-                                            ->where('status', 'completed')
-                                            ->sum('amount_paid'),
-            'approved_activities' => Activity::where('provider_id', $provider->id)->where('is_approved', true)->count(),
+        // Mock data for weekly engagement - replace with actual data
+        $engagementData = [
+            'labels' => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            'data' => [12, 19, 3, 5, 2, 3, 9]
         ];
 
-        $recentActivities = Activity::where('provider_id', $provider->id)
-                                    ->orderBy('created_at', 'desc')
-                                    ->limit(5)
-                                    ->get();
+        return response()->json($engagementData);
+    }
 
-        $pendingApprovals = Approval::where('requestor_id', $user->id)
-                                    ->where('status', 'pending')
-                                    ->with('entity')
-                                    ->limit(5)
-                                    ->get();
+    /**
+     * Get learning progress data
+     */
+    public function learningProgress()
+    {
+        $user = auth()->user();
 
-        return view('dashboards.provider-activity', compact('stats', 'recentActivities', 'pendingApprovals', 'provider'));
+        // Mock data for learning progress - replace with actual data
+        $progressData = [
+            'completed' => 15,
+            'in_progress' => 8,
+            'total' => 25,
+            'percentage' => 60
+        ];
+
+        return response()->json($progressData);
+    }
+
+    /**
+     * Get dashboard stats
+     */
+    public function stats()
+    {
+        $user = auth()->user();
+
+        $stats = [
+            'bookings' => [
+                'total' => Booking::where('user_id', $user->id)->count(),
+                'this_month' => Booking::where('user_id', $user->id)
+                    ->whereMonth('created_at', now()->month)
+                    ->count(),
+                'completed' => Booking::where('user_id', $user->id)->where('status', 'completed')->count(),
+            ],
+            'spending' => [
+                'total' => Booking::where('user_id', $user->id)->where('status', 'completed')->sum('amount_paid'),
+                'this_month' => Booking::where('user_id', $user->id)
+                    ->where('status', 'completed')
+                    ->whereMonth('created_at', now()->month)
+                    ->sum('amount_paid'),
+            ]
+        ];
+
+        return response()->json($stats);
+    }
+
+    /**
+     * Get tab content dynamically
+     */
+    public function tabContent($tab)
+    {
+        $user = auth()->user();
+
+        switch ($tab) {
+            case 'bookings':
+                $data = Booking::where('user_id', $user->id)
+                    ->with(['service', 'activity'])
+                    ->orderBy('created_at', 'desc')
+                    ->limit(10)
+                    ->get();
+                break;
+
+            case 'activities':
+                $data = Activity::where('is_approved', true)
+                    ->inRandomOrder()
+                    ->limit(6)
+                    ->get();
+                break;
+
+            case 'providers':
+                $data = ServiceProvider::inRandomOrder()
+                    ->limit(6)
+                    ->get();
+                break;
+
+            default:
+                $data = [];
+        }
+
+        return response()->json($data);
+    }
+
+    /**
+     * Search functionality
+     */
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+
+        if (empty($query)) {
+            return response()->json([]);
+        }
+
+        // Search activities
+        $activities = Activity::where('is_approved', true)
+            ->where('title', 'LIKE', "%{$query}%")
+            ->orWhere('description', 'LIKE', "%{$query}%")
+            ->limit(5)
+            ->get();
+
+        // Search providers
+        $providers = ServiceProvider::where('name', 'LIKE', "%{$query}%")
+            ->orWhere('bio', 'LIKE', "%{$query}%")
+            ->limit(5)
+            ->get();
+
+        // Search services
+        $services = Service::where('is_active', true)
+            ->where('name', 'LIKE', "%{$query}%")
+            ->orWhere('description', 'LIKE', "%{$query}%")
+            ->limit(5)
+            ->get();
+
+        return response()->json([
+            'activities' => $activities,
+            'providers' => $providers,
+            'services' => $services
+        ]);
     }
 }

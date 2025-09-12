@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Provider;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -32,19 +33,17 @@ class ProviderFactory extends Factory
         $country = $this->faker->randomElement($countries);
 
         return [
-            'name'          => $this->faker->company(),
-            'service_type'  => $this->faker->randomElement([
-                'Therapy & Counseling',
-                'Bonding Activities',
-                'Child Development',
-                'Outdoor Events',
-                'Workshops & Training'
-            ]),
-            'email'         => $this->faker->unique()->safeEmail(),
-            'phone'         => $this->faker->phoneNumber(),
-            'country_code'  => $country['code'],
+            'user_id'       => User::factory(),
+            'business_name' => $this->faker->company(),
+            'category'      => $this->faker->randomElement(['Wellness', 'Education', 'Training', 'Therapy', 'Bonding']),
+            'country'       => $country['code'],
             'city'          => $country['city'],
             'state'         => $country['state'],
+            'timezone'      => $this->faker->timezone,
+            'language'      => $this->faker->languageCode,
+            'status'        => 'approved',
+            'email'         => $this->faker->unique()->safeEmail(),
+            'phone'         => $this->faker->phoneNumber(),
             'address'       => $this->faker->streetAddress(),
             'postal_code'   => $this->faker->postcode(),
             'latitude'      => $this->faker->latitude(-90, 90),
@@ -54,6 +53,9 @@ class ProviderFactory extends Factory
             'avg_rating'    => $this->faker->randomFloat(2, 3.5, 5.0),
             'total_reviews' => $this->faker->numberBetween(10, 500),
             'total_revenue' => $this->faker->randomFloat(2, 1000, 100000),
+            'service_type'  => 'general',
+            'created_at'    => now(),
+            'updated_at'    => now(),
         ];
     }
 }

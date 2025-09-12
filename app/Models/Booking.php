@@ -90,6 +90,11 @@ class Booking extends Model
         return $this->belongsTo(Provider::class, 'provider_id');
     }
 
+    public function client()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
     /**
      * 📊 Scopes for reporting & analytics
      */

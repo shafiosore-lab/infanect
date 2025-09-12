@@ -1,137 +1,74 @@
 {{-- resources/views/bookings/index.blade.php --}}
 @extends('layouts.app')
 
-@section('title', 'My Bookings')
+@section('title', __('My Bookings'))
 
 @section('content')
-<div class="container mx-auto p-6">
-
-    <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">My Bookings</h1>
-        <p class="mt-2 text-gray-600">Manage your activity bookings and reservations</p>
+<div class="max-w-7xl mx-auto p-6">
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">{{ __('My Bookings') }}</h1>
+            <p class="text-sm text-gray-500">{{ __('A list of your recent bookings and their status') }}</p>
+        </div>
     </div>
 
-    <!-- Filters -->
-    <div class="bg-white shadow rounded-lg p-6 mb-8">
-        <form method="GET" action="{{ route('bookings.index') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-                <label for="status" class="block text-sm font-medium text-gray-700">Status</label>
-                <select name="status" id="status" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-                    <option value="">All Status</option>
-                    @foreach(['pending','confirmed','completed','cancelled'] as $status)
-                        <option value="{{ $status }}" {{ request('status') == $status ? 'selected' : '' }}>
-                            {{ ucfirst($status) }}
-                        </option>
-                    @endforeach
-                </select>
-            </div>
-            <div>
-                <label for="date_from" class="block text-sm font-medium text-gray-700">From Date</label>
-                <input type="date" name="date_from" id="date_from" value="{{ request('date_from') }}"
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-            </div>
-            <div>
-                <label for="date_to" class="block text-sm font-medium text-gray-700">To Date</label>
-                <input type="date" name="date_to" id="date_to" value="{{ request('date_to') }}"
-                       class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
-            </div>
-            <div class="flex items-end">
-                <button type="submit" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    Filter
-                </button>
-            </div>
-        </form>
-    </div>
+    @php
+        $bookingsList = $bookings ?? collect();
+        if (! ($bookingsList instanceof \Illuminate\Support\Collection) && is_iterable($bookingsList)) {
+            $bookingsList = collect($bookingsList);
+        }
+    @endphp
 
-    <!-- Bookings List -->
-    <div class="space-y-6">
-        @forelse($bookings as $booking)
-            <div class="bg-white shadow rounded-lg overflow-hidden">
-                <div class="p-6">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-xl font-semibold text-gray-900">
-                            {{ $booking->activity->title ?? ($booking->service->name ?? 'Booking') }}
-                        </h3>
+    @if($bookingsList->count() === 0)
+        <div class="p-6 bg-white/5 border border-white/10 rounded">
+            <p class="text-gray-400">{{ __('You have no bookings yet.') }}</p>
+            <a href="{{ route('activities.index') }}" class="mt-3 inline-block text-primary hover:underline">{{ __('Browse activities') }}</a>
+        </div>
+    @else
+        <div class="overflow-x-auto bg-white/5 rounded border border-white/10">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50/5">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">{{ __('Ref') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">{{ __('Service') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">{{ __('Provider') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">{{ __('Date') }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-400">{{ __('Amount') }}</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-400">{{ __('Status') }}</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-400">{{ __('Actions') }}</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-transparent divide-y divide-gray-700">
+                    @foreach($bookingsList as $booking)
                         @php
-                            $statusClasses = [
-                                'pending' => 'bg-yellow-100 text-yellow-800',
-                                'confirmed' => 'bg-green-100 text-green-800',
-                                'completed' => 'bg-blue-100 text-blue-800',
-                                'cancelled' => 'bg-red-100 text-red-800'
-                            ];
+                            $ref = $booking->reference ?? $booking->transaction_reference ?? ('#'.$booking->id ?? '—');
+                            $service = optional($booking)->service->title ?? $booking->activity_title ?? $booking->service_name ?? '—';
+                            $provider = optional(optional($booking)->provider)->business_name ?? optional($booking)->provider_name ?? '—';
+                            $date = optional($booking)->start_time ?? optional($booking)->scheduled_at ?? optional($booking)->created_at ?? null;
+                            $amount = $booking->amount ?? $booking->total ?? 0;
+                            $status = ucfirst($booking->status ?? 'unknown');
                         @endphp
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $statusClasses[$booking->status] ?? 'bg-gray-100 text-gray-800' }}">
-                            {{ ucfirst($booking->status) }}
-                        </span>
-                    </div>
+                        <tr>
+                            <td class="px-4 py-3 text-sm text-gray-200">{{ $ref }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-200">{{ $service }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-200">{{ $provider }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-200">{{ $date ? \Carbon\Carbon::parse($date)->format('Y-m-d H:i') : '—' }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-200 text-right">{{ number_format($amount, 2) }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-200">{{ $status }}</td>
+                            <td class="px-4 py-3 text-sm text-right">
+                                <a href="{{ route('user.bookings.show', $booking->id ?? $booking->booking_id ?? $booking->id) }}" class="text-primary hover:underline">{{ __('View') }}</a>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                        <div>
-                            <p class="text-sm text-gray-600">Provider</p>
-                            <p class="font-medium">{{ $booking->provider->name ?? 'N/A' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-600">Date & Time</p>
-                            <p class="font-medium">{{ $booking->scheduled_at ? $booking->scheduled_at->format('M j, Y g:i A') : 'N/A' }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-600">Amount</p>
-                            <p class="font-medium">{{ $booking->currency_code ?? 'KES' }} {{ number_format($booking->amount, 2) }}</p>
-                        </div>
-                        <div>
-                            <p class="text-sm text-gray-600">Booked On</p>
-                            <p class="font-medium">{{ $booking->created_at->format('M j, Y') }}</p>
-                        </div>
-                    </div>
-
-                    @if($booking->notes)
-                        <div class="mb-6">
-                            <p class="text-sm text-gray-600">Notes</p>
-                            <p class="text-sm bg-gray-50 p-3 rounded">{{ $booking->notes }}</p>
-                        </div>
-                    @endif
-
-                    <div class="flex space-x-3">
-                        <a href="{{ route('bookings.show', $booking) }}" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 transition-colors">
-                            View Details
-                        </a>
-
-                        @if($booking->status == 'confirmed' && $booking->scheduled_at && $booking->scheduled_at->isFuture())
-                            <form method="POST" action="{{ route('bookings.cancel', $booking) }}" onsubmit="return confirm('Are you sure you want to cancel this booking?')" class="inline">
-                                @csrf
-                                <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700 transition-colors">
-                                    Cancel Booking
-                                </button>
-                            </form>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        @empty
-            <div class="bg-white shadow rounded-lg p-12">
-                <div class="text-center">
-                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-                    </svg>
-                    <h3 class="mt-2 text-sm font-medium text-gray-900">No bookings found</h3>
-                    <p class="mt-1 text-sm text-gray-500">You haven't made any bookings yet.</p>
-                    <div class="mt-6">
-                        <a href="{{ route('activities.index') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
-                            Browse Activities
-                        </a>
-                    </div>
-                </div>
-            </div>
-        @endforelse
-    </div>
-
-    <!-- Pagination -->
-    @if($bookings->hasPages())
-        <div class="mt-8">
-            {{ $bookings->links() }}
+        <div class="mt-4">
+            @if(method_exists($bookings ?? null, 'links'))
+                {{ $bookings->links() }}
+            @endif
         </div>
     @endif
-
 </div>
 @endsection

@@ -28,7 +28,22 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('dashboard', absolute: false));
+        $user = auth()->user();
+        $roleSlug = $user->role->slug ?? 'no-role';
+        \Log::info('User logged in', ['user_id' => $user->id, 'email' => $user->email, 'role_slug' => $roleSlug]);
+
+        // Redirect based on role, similar to registration
+        switch ($roleSlug) {
+            case 'super-admin':
+                return redirect()->route('dashboard.super-admin');
+            case 'provider-professional':
+                return redirect()->route('dashboard.provider-professional');
+            case 'provider-bonding':
+                return redirect()->route('dashboard.provider-bonding');
+            case 'client':
+            default:
+                return redirect()->intended(route('dashboard', absolute: false));
+        }
     }
 
     /**

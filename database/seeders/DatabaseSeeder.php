@@ -9,23 +9,25 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call([
-            RoleSeeder::class,            // Must run first (creates roles)
-            AdminUserSeeder::class,       // Seeds main admin user
-            UserSeeder::class,            // Creates client/employee test users
-            ProviderUserSeeder::class,    // Creates provider admins and employees
+        $ordered = [
+            \Database\Seeders\RolesAndPermissionsSeeder::class,
+            \Database\Seeders\UserSeeder::class,
+            \Database\Seeders\RecommendationSeeder::class,
+            \Database\Seeders\ActivityTemplateSeeder::class,
+            \Database\Seeders\ReviewSeeder::class,
+            \Database\Seeders\TransactionSeeder::class,
+        ];
 
-            CategoriesSeeder::class,      // Activity/Service categories
-            ServiceProviderSeeder::class, // Seeds service provider organizations
-            ServiceSeeder::class,         // Seeds services
-            ActivitySeeder::class,        // Seeds bonding activities/events
-            ProviderSeeder::class,        // Seeds provider details
+        foreach ($ordered as $seeder) {
+            if (! class_exists($seeder)) continue;
 
-            ReviewSeeder::class,          // Seeds reviews/ratings
-            TransactionSeeder::class,     // Seeds transactions/payments
-            ParentingModuleSeeder::class, // Seeds parenting modules
-            TaskSeeder::class,            // Seeds sample tasks for dashboard
-        ]);
+            try {
+                $this->call($seeder);
+            } catch (\Throwable $e) {
+                // Log or ignore - continue with next seeder
+                // You can enable logging here if desired: info('Seeder failed: '.$seeder.': '.$e->getMessage());
+            }
+        }
 
         // 🚀 Use factory for richer booking seeding
         Booking::factory(20)->create();

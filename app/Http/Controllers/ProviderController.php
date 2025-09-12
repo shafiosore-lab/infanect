@@ -14,55 +14,39 @@ class ProviderController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Provider::query();
+        try {
+            $query = Provider::query();
 
-        // Search functionality
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('service_type', 'LIKE', "%{$search}%")
-                  ->orWhere('city', 'LIKE', "%{$search}%");
-            });
+            // Filter: Location
+            if ($request->filled('location') && $request->location !== 'All') {
+                $query->where('location', $request->location);
+            }
+
+            // Filter: Service
+            if ($request->filled('service') && $request->service !== 'All') {
+                $query->whereJsonContains('services', $request->service);
+            }
+
+            // Filter: Rating
+            if ($request->filled('rating') && $request->rating !== 'Any') {
+                $query->where('rating', '>=', $request->rating);
+            }
+
+            $providers = $query->paginate(10)->appends($request->all());
+
+            return view('providers.index', compact('providers'));
+        } catch (\Exception $e) {
+            // Create empty paginated collection as fallback
+            $providers = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect([]),
+                0,
+                10,
+                1,
+                ['path' => request()->url(), 'pageName' => 'page']
+            );
+
+            return view('providers.index', compact('providers'));
         }
-
-        // Filter by service type
-        if ($request->filled('service_type')) {
-            $query->where('service_type', $request->service_type);
-        }
-
-        // Filter by location
-        if ($request->filled('location')) {
-            $query->where(function($q) use ($request) {
-                $q->where('city', 'LIKE', "%{$request->location}%")
-                  ->orWhere('state', 'LIKE', "%{$request->location}%")
-                  ->orWhere('address', 'LIKE', "%{$request->location}%");
-            });
-        }
-
-        // Filter by availability
-        if ($request->get('available') == '1') {
-            $query->where('is_available', true);
-        }
-
-        // Sort options
-        $sortBy = $request->get('sort', 'name');
-        $sortDirection = $request->get('direction', 'asc');
-
-        if ($sortBy === 'rating') {
-            $query->orderBy('avg_rating', $sortDirection);
-        } elseif ($sortBy === 'reviews') {
-            $query->orderBy('total_reviews', $sortDirection);
-        } else {
-            $query->orderBy('name', $sortDirection);
-        }
-
-        $providers = $query->paginate(12);
-
-        // Unique service types for filters
-        $serviceTypes = Provider::distinct('service_type')->pluck('service_type')->filter()->values();
-
-        return view('providers.index', compact('providers', 'serviceTypes'));
     }
 
     /**
@@ -138,5 +122,72 @@ class ProviderController extends Controller
                              ->paginate(12);
 
         return view('providers.top-rated', compact('providers'));
+    }
+
+    /**
+     * Show the onboarding form for providers.
+     */
+    public function showOnboarding(Request $request)
+    {
+        return view('providers.onboarding');
+    }
+
+    /**
+     * Handle the onboarding form submission.
+     */
+    public function storeOnboarding(Request $request)
+    {
+        $data = $request->validate([
+            'business_name' => 'nullable|string|max:255',
+            'category' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'city' => 'nullable|string|max:100',
+            'timezone' => 'nullable|string|max:100',
+            'language' => 'nullable|string|max:10',
+        ]);
+
+        // Create or update provider profile linked to user
+        $provider = Provider::updateOrCreate(
+            ['user_id' => $request->user()->id],
+            array_merge($data, ['status' => 'pending'])
+        );
+
+        return redirect()->route('provider.documents')->with('status', 'Profile saved. Please upload required documents.');
+    }
+
+    /**
+     * Show the documents upload form for providers.
+     */
+    public function documents(Request $request)
+    {
+        return view('providers.documents');
+    }
+
+    /**
+     * Handle the documents upload.
+     */
+    public function uploadDocuments(Request $request)
+    {
+        $request->validate([
+            'business_license' => 'nullable|file|max:2048',
+            'id_document' => 'nullable|file|max:2048',
+        ]);
+
+        $provider = Provider::firstOrCreate(['user_id' => $request->user()->id]);
+
+        if ($request->hasFile('business_license')) {
+            $path = $request->file('business_license')->store('provider_documents');
+            $provider->business_license_path = $path;
+        }
+
+        if ($request->hasFile('id_document')) {
+            $path = $request->file('id_document')->store('provider_documents');
+            $provider->id_document_path = $path;
+        }
+
+        $provider->status = 'review';
+        $provider->save();
+
+        return redirect()->route('provider.documents')->with('status', 'Documents uploaded. Awaiting review.');
     }
 }

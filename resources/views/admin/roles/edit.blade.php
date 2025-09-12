@@ -50,5 +50,22 @@
             </form>
         </div>
     </div>
+
+    <div class="max-w-3xl mx-auto mt-8">
+        <h1 class="text-2xl font-semibold mb-4">Edit Role for {{ $user->name }}</h1>
+
+        <form method="POST" action="{{ route('admin.roles.management.update', $user) }}">@csrf @method('PUT')
+            <label class="block mb-2">Role</label>
+            <select name="role" class="w-full p-2 border rounded">
+                @foreach($roles as $r)
+                    <option value="{{ $r }}" {{ $user->role === $r ? 'selected' : '' }}>{{ $r }}</option>
+                @endforeach
+            </select>
+            <div class="mt-4">
+                <button class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+                <a href="{{ route('admin.roles.management.index') }}" class="ml-2 text-gray-600">Cancel</a>
+            </div>
+        </form>
+    </div>
 </div>
 @endsection

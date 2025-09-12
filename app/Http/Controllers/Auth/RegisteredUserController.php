@@ -8,7 +8,6 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
@@ -16,18 +15,22 @@ use Illuminate\View\View;
 class RegisteredUserController extends Controller
 {
     /**
-     * Display the registration view.
+     * Display the registration view with available roles.
+     *
+     * @return View
      */
     public function create(): View
     {
-        // Available roles (now including "client")
         $roles = Role::whereIn('slug', [
-            'client',      // Regular client/parent - main app user
-            'employee',    // Internal staff
-            'provider',    // Activity/Service provider
-            'manager',     // Limited admin access
-            'admin'        // Super Admin
+            'client',
+            'employee',
+            'provider',
+            'activity_provider',
+            'manager',
+            'admin'
         ])->get();
+
+
 
         return view('auth.register', compact('roles'));
     }
@@ -35,63 +38,67 @@ class RegisteredUserController extends Controller
     /**
      * Handle an incoming registration request.
      *
-     * @throws \Illuminate\Validation\ValidationException
+     * @param RegisterRequest $request
+     * @return RedirectResponse
      */
     public function store(RegisterRequest $request): RedirectResponse
     {
         $validated = $request->validated();
 
+        // Map slug to role_id
+        $role = Role::where('id', $validated['role_id'])->first();
+
         $user = User::create([
             'name'       => $validated['name'],
             'email'      => $validated['email'],
             'password'   => Hash::make($validated['password']),
-            'role_id'    => $validated['role_id'],
+            'role_id'    => $role->id,
             'phone'      => $validated['phone'] ?? null,
             'department' => $validated['department'] ?? null,
-            'is_active'  => true, // Auto-activate (toggle if admin approval required)
+            'is_active'  => true,
         ]);
 
         event(new Registered($user));
-
         Auth::login($user);
 
-        return $this->handlePostRegistration($user);
+        return $this->redirectToRoleDashboard($user);
     }
 
     /**
-     * Handle post-registration logic based on user role.
+     * Redirect user to their role-specific dashboard.
+     *
+     * @param User $user
+     * @return RedirectResponse
      */
-    private function handlePostRegistration(User $user): RedirectResponse
+    private function redirectToRoleDashboard(User $user): RedirectResponse
     {
-        switch ($user->role->slug) {
-            case 'provider':
-                return redirect()->route('provider.register')
-                    ->with('success', 'Provider account created! Please complete your profile.');
+        $role = $user->role->slug;
 
+        switch ($role) {
             case 'admin':
-                return redirect()->route('dashboard')
-                    ->with('success', 'Welcome to the admin dashboard!');
+                return redirect()->route('admin.dashboard')
+                    ->with('success', __('Welcome to the Admin Dashboard!'));
 
             case 'manager':
-                return redirect()->route('dashboard')
-                    ->with('success', 'Welcome to the manager dashboard!');
+                return redirect()->route('manager.dashboard')
+                    ->with('success', __('Welcome to the Manager Dashboard!'));
 
             case 'employee':
-                return redirect()->route('dashboard')
-                    ->with('success', 'Welcome employee! Explore your tasks and activities.');
+                return redirect()->route('employee.dashboard')
+                    ->with('success', __('Welcome! Your tasks and schedules are ready.'));
 
-            case 'client': // NEW role
+            case 'provider':
+                return redirect()->route('provider.dashboard')
+                    ->with('success', __('Welcome! Manage your services, bookings, and insights.'));
+
+            case 'activity_provider':
+                return redirect()->route('provider.dashboard')
+                    ->with('success', __('Welcome! Manage your activities and registrations.'));
+
+            case 'client':
             default:
-                return redirect()->route('dashboard')
-                    ->with('success', 'Welcome! Explore bonding activities, parenting modules, and AI support.');
+                return redirect()->route('user.dashboard')
+                    ->with('success', __('Welcome! Explore activities, parenting modules, and AI support.'));
         }
-    }
-
-    /**
-     * Universal dashboard redirect (future-proof).
-     */
-    private function redirectToDashboard(User $user): RedirectResponse
-    {
-        return redirect()->route('dashboard');
     }
 }

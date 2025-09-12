@@ -1,383 +1,265 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\{
-    DashboardController,
-    ProfileController,
-    FeedbackController,
-    FinanceInsightsController,
-    AnalyticsController,
-    ActivityController,
-    ProviderController as UserProviderController,
-    BookingController as UserBookingController,
-    PaymentController,
-    ParentingModuleController,
-    TrainingModuleController,
-    AiChatController,
-    ServicesController
-};
-use App\Http\Controllers\Admin\{
-    UserController,
-    ProviderController,
-    ActivityController as AdminActivityController,
-    BookingController as AdminBookingController,
-    ReportController,
-    EarningsController,
-    InvoicesController,
-    SubscriptionsController,
-    ServiceInsightController,
-    ClientInsightController,
-    FinancialInsightController,
-    CategoryController,
-    ServiceController,
-    ServiceProviderController,
-    ModuleController,
-    DashboardController as AdminDashboardController,
-    FeedbackController as AdminFeedbackController,
-    RoleController,
-    ApprovalController
-};
-use App\Http\Controllers\Provider\{
-    ServiceController as ProviderServiceController,
-    BookingController as ProviderBookingController,
-    ClientController as ProviderClientController,
-    PaymentController as ProviderPaymentController
-};
 
+/*
+|--------------------------------------------------------------------------
+| Web Routes
+|--------------------------------------------------------------------------
+*/
 
-
-
-
-use App\Http\Controllers\Provider\ProviderDashboardController;
-use App\Http\Controllers\User\UserDashboardController;
-
+// Home page
 Route::get('/', function () {
     return view('welcome');
 });
 
-// --- AUTH routes ---
-Auth::routes();
+// Auth routes
+require __DIR__.'/auth.php';
 
-// --- ADMIN routes ---
-Route::middleware(['auth', 'role:admin'])
-    ->prefix('admin')
-    ->name('admin.')
-    ->group(function () {
-        Route::get('/dashboard', [AdminDashboardController::class, 'index'])
-            ->name('dashboard');
-    });
+// Registration routes
+Route::get('/register', [\App\Http\Controllers\Auth\RegisterController::class, 'showRegistrationForm'])->name('register');
+Route::post('/register', [\App\Http\Controllers\Auth\RegisterController::class, 'register']);
 
-// --- PROVIDER routes ---
-Route::middleware(['auth', 'role:provider'])
-    ->prefix('provider')
-    ->name('provider.')
-    ->group(function () {
-        Route::get('/dashboard', [ProviderDashboardController::class, 'index'])
-            ->name('dashboard');
-    });
+// Provider registration
+Route::get('/provider/register', [\App\Http\Controllers\Auth\ProviderRegisterController::class, 'show'])->name('provider.register');
+Route::post('/provider/register', [\App\Http\Controllers\Auth\ProviderRegisterController::class, 'register'])->name('provider.register.post');
 
-// --- USER/CLIENT routes ---
-Route::middleware(['auth', 'role:user'])
-    ->prefix('user')
-    ->name('user.')
-    ->group(function () {
-        Route::get('/dashboard', [UserDashboardController::class, 'index'])
-            ->name('dashboard');
-    });
+/*
+|--------------------------------------------------------------------------
+| Authenticated Routes
+|--------------------------------------------------------------------------
+*/
+Route::middleware('auth')->group(function () {
+    // Dashboard
+    Route::get('/dashboard', [\App\Http\Controllers\DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
 
+    // User bookings
+    Route::get('bookings', [\App\Http\Controllers\UserBookingController::class, 'index'])->name('user.bookings.index');
+    Route::get('bookings/{id}', [\App\Http\Controllers\UserBookingController::class, 'show'])->name('user.bookings.show');
 
-    Route::prefix('dashboard')->middleware(['auth', 'verified'])->group(function () {
-    Route::get('/', [UserDashboardController::class, 'index'])->name('dashboard');
+    // Start Learning
+    Route::get('/start-learning', [\App\Http\Controllers\StartLearningController::class, 'index'])->name('start-learning.index');
+    Route::post('/start-learning/play', [\App\Http\Controllers\StartLearningController::class, 'play'])->name('start-learning.play');
+    Route::get('/start-learning/play/{externalId?}', [\App\Http\Controllers\StartLearningController::class, 'playDirect'])->name('start-learning.play.direct');
 
-    // Chart endpoints
-    Route::get('/weekly-engagement', [UserDashboardController::class, 'weeklyEngagement'])
-        ->name('dashboard.weekly-engagement');
-    Route::get('/learning-progress', [UserDashboardController::class, 'learningProgress'])
-        ->name('dashboard.learning-progress');
+    // Reflections
+    Route::post('/reflections', [\App\Http\Controllers\ReflectionController::class, 'store'])->name('reflections.store');
+
+    // Mood submission
+    Route::post('/mood/submit', [\App\Http\Controllers\MoodController::class, 'submit'])->name('mood.submit');
+
+    // Saved lessons
+    Route::post('/saved-lessons/save', [\App\Http\Controllers\SavedLessonController::class, 'save'])->name('saved-lessons.save');
+    Route::post('/saved-lessons/delete', [\App\Http\Controllers\SavedLessonController::class, 'delete'])->name('saved-lessons.delete');
+    Route::get('/saved-lessons/list', [\App\Http\Controllers\SavedLessonController::class, 'list'])->name('saved-lessons.list');
+
+    // Training Routes
+    Route::get('/training', [\App\Http\Controllers\TrainingController::class, 'index'])->name('training.index');
+    Route::get('/training/module/{moduleId}', [\App\Http\Controllers\TrainingController::class, 'module'])->name('training.module');
 });
 
+/*
+|--------------------------------------------------------------------------
+| Role-specific Dashboard Routes
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'role:super-admin'])->get('/dashboard/super-admin', [\App\Http\Controllers\SuperAdminDashboardController::class, 'index'])->name('dashboard.super-admin');
+Route::middleware(['auth', 'role:provider-professional'])->get('/dashboard/provider-professional', [\App\Http\Controllers\ProfessionalProviderDashboardController::class, 'index'])->name('dashboard.provider-professional');
+Route::middleware(['auth', 'role:provider-bonding'])->get('/dashboard/provider-bonding', [\App\Http\Controllers\BondingProviderDashboardController::class, 'index'])->name('dashboard.provider-bonding');
+Route::middleware(['auth', 'role:client'])->get('/dashboard/client', [\App\Http\Controllers\ClientDashboardController::class, 'index'])->name('dashboard.client');
+Route::middleware(['auth','role:super-admin'])->get('/dashboard/stats/super', [\AppHttp\Controllers\DashboardStatsController::class, 'superAdmin'])->name('dashboard.stats.super');
 
-// =====================
-// Public Routes
-// =====================
-Route::get('/', fn() => view('welcome'));
+/*
+|--------------------------------------------------------------------------
+| Module Routes
+|--------------------------------------------------------------------------
+*/
+// Training modules
+Route::get('training-modules', [\App\Http\Controllers\TrainingModuleController::class, 'index'])->name('training-modules.index');
+Route::get('training-modules/{id}', [\App\Http\Controllers\TrainingModuleController::class, 'show'])->name('training-modules.show');
 
-// =====================
-// User Bookings Routes
-// =====================
-Route::prefix('bookings')->name('bookings.')->group(function () {
+// Parenting modules
+Route::get('parenting-modules', [\App\Http\Controllers\ParentingModuleController::class, 'index'])->name('parenting-modules.index');
+Route::get('parenting-modules/{id}', [\App\Http\Controllers\ParentingModuleController::class, 'show'])->name('parenting-modules.show');
 
-    // List all bookings
-    Route::get('/', [UserBookingController::class, 'index'])->name('index');
+// Mental Health modules (renamed from training)
+Route::get('mentalhealth-modules', [\App\Http\Controllers\TrainingModuleController::class, 'index'])->name('mentalhealth-modules.index');
+Route::get('mentalhealth-modules/{id}', [\App\Http\Controllers\TrainingModuleController::class, 'show'])->name('mentalhealth-modules.show');
+Route::get('mentalhealth', [\App\Http\Controllers\TrainingModuleController::class, 'index'])->name('mentalhealth.index');
+Route::get('mentalhealth/{id}', [\App\Http\Controllers\TrainingModuleController::class, 'show'])->name('mentalhealth.show');
 
-    // Show a single booking
-    Route::get('/{booking}', [UserBookingController::class, 'show'])->name('show');
+// Short aliases
+Route::get('parenting', [\App\Http\Controllers\ParentingModuleController::class, 'index'])->name('parenting.index');
+Route::get('trainings', [\App\Http\Controllers\TrainingModuleController::class, 'index'])->name('trainings.index');
+Route::get('trainings/{id}', [\App\Http\Controllers\TrainingModuleController::class, 'show'])->name('trainings.show');
 
-    // Create booking for an activity
-    Route::get('/create/activity/{activity}', [UserBookingController::class, 'createForActivity'])
-        ->name('create.activity')
-        ->whereNumber('activity');
+/*
+|--------------------------------------------------------------------------
+| Public Routes
+|--------------------------------------------------------------------------
+*/
+// Activities
+Route::get('activities/search', [\App\Http\Controllers\ActivityController::class, 'search'])->name('activities.search');
+Route::get('activities', [\App\Http\Controllers\ActivityController::class, 'index'])->name('activities.index');
+Route::get('activities/{id}', [\App\Http\Controllers\ActivityController::class, 'show'])->name('activities.show');
 
-    // Create booking for a service
-    Route::get('/create/service/{service}', [UserBookingController::class, 'createForService'])
-        ->name('create.service')
-        ->whereNumber('service');
+// Provider routes
+Route::get('/providers', [App\Http\Controllers\UserProviderController::class, 'index'])->name('providers.index');
+Route::get('/providers/{id}', [App\Http\Controllers\UserProviderController::class, 'show'])->name('providers.show');
+Route::get('/providers/{id}/book', [App\Http\Controllers\UserProviderController::class, 'book'])->name('providers.book');
+Route::post('/providers/{id}/book', [App\Http\Controllers\UserProviderController::class, 'storeBooking'])->name('providers.book.store');
+Route::get('/providers/{id}/payment', [App\Http\Controllers\UserProviderController::class, 'payment'])->name('providers.payment');
+Route::post('/providers/{id}/payment', [App\Http\Controllers\UserProviderController::class, 'processPayment'])->name('providers.payment.process');
+Route::get('/booking/receipt/{bookingId}', [App\Http\Controllers\UserProviderController::class, 'downloadReceipt'])->name('booking.receipt');
 
-    // Store booking (for both activity and service)
-    Route::post('/', [UserBookingController::class, 'store'])->name('store');
+// Activities routes
+Route::get('/activities', [App\Http\Controllers\ActivityController::class, 'index'])->name('activities.index');
+Route::get('/activities/{id}', [App\Http\Controllers\ActivityController::class, 'show'])->name('activities.show');
+Route::get('/activities/category/{category}', [App\Http\Controllers\ActivityController::class, 'category'])->name('activities.category');
 
-    // Booking success
-    Route::get('/{booking}/success', [UserBookingController::class, 'success'])->name('success');
+// Activity booking routes
+Route::middleware('auth')->group(function () {
+    Route::get('/activities/{id}/book', [AppHttp\Controllers\ActivityController::class, 'book'])->name('activities.book');
+    Route::post('/activities/{id}/book', [AppHttp\Controllers\ActivityController::class, 'storeBooking'])->name('activities.book.store');
+    Route::get('/activities/{id}/payment', [AppHttp\Controllers\ActivityController::class, 'payment'])->name('activities.payment');
+    Route::post('/activities/{id}/payment', [AppHttp\Controllers\ActivityController::class, 'processPayment'])->name('activities.payment.process');
+    Route::get('/activities/{id}/success/{reference}', [AppHttp\Controllers\ActivityController::class, 'bookingSuccess'])->name('activities.booking.success');
 
-    // Cancel a booking
-    Route::post('/{booking}/cancel', [UserBookingController::class, 'cancel'])->name('cancel');
-
-    // Payment for a booking
-    Route::get('/{booking}/payment', [PaymentController::class, 'create'])->name('payment.create');
-    Route::post('/{booking}/payment', [PaymentController::class, 'store'])->name('payment.store');
-
+    // My bookings management
+    Route::get('/my-bookings/activities', [AppHttp\Controllers\ActivityController::class, 'myBookings'])->name('activities.my-bookings');
+    Route::get('/my-bookings/activities/{reference}', [AppHttp\Controllers\ActivityController::class, 'showBooking'])->name('activities.booking.details');
 });
 
-// =====================
-// User Payments Routes
-// =====================
-Route::prefix('payments')->name('payments.')->group(function () {
+// Dashboard feature routes
+Route::middleware('auth')->group(function () {
+    // Financial Insights
+    Route::get('/financial/insights', [App\Http\Controllers\FinancialController::class, 'insights'])->name('financial.insights');
+    Route::get('/financial/reports', [App\Http\Controllers\FinancialController::class, 'reports'])->name('financial.reports');
 
-    // Confirm payment
-    Route::get('/{booking}/{transaction}/confirm', [PaymentController::class, 'confirm'])->name('confirm');
-    Route::post('/{booking}/{transaction}/confirm', [PaymentController::class, 'confirm'])->name('confirm.post');
+    // Messages
+    Route::get('/messages', [AppHttp\Controllers\MessageController::class, 'index'])->name('messages.index');
+    Route::get('/messages/{id}', [AppHttp\Controllers\MessageController::class, 'show'])->name('messages.show');
+    Route::post('/messages', [AppHttp\Controllers\MessageController::class, 'store'])->name('messages.store');
 
-    // Payment history
-    Route::get('/history', [PaymentController::class, 'history'])->name('history');
+    // Community Engagements
+    Route::get('/engagements', [AppHttp\Controllers\EngagementController::class, 'index'])->name('engagements.index');
+    Route::get('/engagements/{id}', [AppHttp\Controllers\EngagementController::class, 'show'])->name('engagements.show');
+    Route::post('/engagements/{id}/join', [AppHttp\Controllers\EngagementController::class, 'join'])->name('engagements.join');
 
-    // Process payment
-    Route::post('/process', [PaymentController::class, 'processPayment'])->name('process');
+    // Family Management
+    Route::get('/family', [AppHttp\Controllers\FamilyController::class, 'index'])->name('family.index');
+    Route::post('/family/members', [AppHttp\Controllers\FamilyController::class, 'addMember'])->name('family.add-member');
+    Route::delete('/family/members/{id}', [AppHttp\Controllers\FamilyController::class, 'removeMember'])->name('family.remove-member');
 
-    // Mpesa callback
-    Route::post('/mpesa/callback', [PaymentController::class, 'mpesaCallback'])->name('mpesa.callback');
+    // Rewards & Points
+    Route::get('/rewards', [AppHttp\Controllers\RewardController::class, 'index'])->name('rewards.index');
+    Route::post('/rewards/{id}/redeem', [AppHttp\Controllers\RewardController::class, 'redeem'])->name('rewards.redeem');
+    Route::get('/rewards/history', [AppHttp\Controllers\RewardController::class, 'history'])->name('rewards.history');
+});// Public services
+Route::get('services/{service}', [\AppHttp\Controllers\ServicePublicController::class, 'show'])->name('services.show');
+Route::get('services/{service}/slots', [\AppHttp\Controllers\ServicePublicController::class, 'slots'])->name('services.slots');
+Route::post('services/{service}/book', [\AppHttp\Controllers\ServiceBookingController::class, 'store'])->middleware('auth')->name('services.book');
 
-});
+// AI Chat
+Route::get('ai/chat', [\App\Http\Controllers\AiChatController::class, 'index'])->name('ai.chat');
+Route::post('ai/chat/upload', [\App\Http\Controllers\AiChatController::class, 'upload'])->name('ai.upload');
+Route::post('ai/chat/message', [\App\Http\Controllers\AiChatController::class, 'message'])->name('ai.message');
+Route::get('ai/documents', [\App\Http\Controllers\AiChatController::class, 'documents'])->name('ai.documents');
 
+// Payments
+Route::get('payments/{booking}/checkout/{gateway?}', [\App\Http\Controllers\PaymentController::class, 'checkout'])->name('payments.checkout');
+Route::post('payments/webhook', [\App\Http\Controllers\PaymentController::class, 'webhook'])->name('payments.webhook');
+Route::get('payments/{payment}/receipt', [\AppHttp\Controllers\PaymentController::class, 'receipt'])->name('payments.receipt');
 
-// =====================
-// Authenticated Routes
-// =====================
-Route::middleware(['auth'])->group(function () {
+// Locale switcher
+Route::get('/locale/{locale}', [\App\Http\Controllers\LocaleController::class, 'set'])->name('locale.set');
 
-    // ---------------------
-    // Dashboard & Profile
-    // ---------------------
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    Route::get('/dashboard/wellness', [DashboardController::class, 'wellness'])->name('dashboard.wellness');
-    Route::get('/dashboard/weekly-engagement', [DashboardController::class, 'weeklyEngagement'])->name('dashboard.weekly-engagement');
-    Route::get('/dashboard/learning-progress', [DashboardController::class, 'learningProgress'])->name('dashboard.learning-progress');
-    Route::get('/dashboard/stats', [DashboardController::class, 'stats'])->name('dashboard.stats');
-    Route::get('/dashboard/tab-content/{tab}', [DashboardController::class, 'tabContent'])->name('dashboard.tab-content');
-    Route::get('/dashboard/search', [DashboardController::class, 'search'])->name('dashboard.search');
+// Calm Space
+Route::post('/calmspace/track', [\App\Http\Controllers\CalmSpaceController::class, 'track'])->name('calmspace.track');
+Route::get('/resources/mental-health', [\App\Http\Controllers\CalmSpaceController::class, 'resources'])->name('resources.mental-health');
 
-    Route::prefix('profile')->name('profile.')->group(function () {
-        Route::get('/', [ProfileController::class, 'edit'])->name('edit');
-        Route::patch('/', [ProfileController::class, 'update'])->name('update');
-        Route::delete('/', [ProfileController::class, 'destroy'])->name('destroy');
-    });
+/*
+|--------------------------------------------------------------------------
+| Provider Routes
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'role:provider'])->prefix('provider')->name('provider.')->group(function () {
+    Route::get('dashboard', [\App\Http\Controllers\Provider\DashboardController::class, 'index'])->name('dashboard');
+    Route::resource('services', \App\Http\Controllers\Provider\ServiceController::class);
+    Route::resource('bookings', \AppHttp\Controllers\Provider\BookingController::class)->only(['index', 'show', 'update']);
+    Route::resource('reviews', \AppHttp\Controllers\Provider\ReviewController::class)->only(['index']);
 
-    // ---------------------
-    // Language Switch
-    // ---------------------
-    Route::get('locale/{lang}', function ($lang) {
-        session(['locale' => $lang]);
-        return redirect()->back();
-    });
+    // Availability management
+    Route::get('services/{service}/availability', [\App\Http\Controllers\Provider\AvailabilityController::class, 'edit'])->name('services.availability.edit');
+    Route::post('services/{service}/availability', [\App\Http\Controllers\Provider\AvailabilityController::class, 'update'])->name('services.availability.update');
+    Route::get('services/{service}/slots', [\App\Http\Controllers\Provider\AvailabilityController::class, 'slots'])->name('services.availability.slots');
 
-    // ---------------------
-    // User Functionality
-    // ---------------------
-
-    // Activities
-    Route::resource('activities', ActivityController::class)->only(['index', 'show']);
-    Route::get('/search/activities', [ActivityController::class, 'search'])->name('activities.search');
-    Route::get('/activities/family', [ActivityController::class, 'family'])->name('activities.family');
-    Route::get('/activities/outdoor', [ActivityController::class, 'outdoor'])->name('activities.outdoor');
-    Route::get('/activities/indoor', [ActivityController::class, 'indoor'])->name('activities.indoor');
-
-    // Providers
-    Route::resource('providers', UserProviderController::class)->only(['index', 'show']);
-    Route::get('/providers/featured', [UserProviderController::class, 'featured'])->name('providers.featured');
-    Route::get('/providers/top-rated', [UserProviderController::class, 'topRated'])->name('providers.top-rated');
-
-    // Services
-    Route::resource('services', ServicesController::class)->only(['index']);
-    Route::get('/services/popular', [ServicesController::class, 'popular'])->name('services.popular');
-    Route::get('/services/categories', [ServicesController::class, 'categories'])->name('services.categories');
-
-    // Bookings
-    Route::resource('bookings', UserBookingController::class)->only(['index', 'show', 'store']);
-    Route::get('/bookings/create/{activity?}', [UserBookingController::class, 'create'])
-        ->name('bookings.create')
-        ->whereNumber('activity');
-    Route::get('/bookings/create/service/{service}', [UserBookingController::class, 'createForService'])
-        ->name('bookings.create.service')
-        ->whereNumber('service');
-    Route::get('/bookings/{booking}/success', [UserBookingController::class, 'success'])->name('bookings.success');
-    Route::post('/bookings/{booking}/cancel', [UserBookingController::class, 'cancel'])->name('bookings.cancel');
+    // Metrics
+    Route::get('metrics', [\App\Http\Controllers\Provider\MetricsController::class, 'index'])->name('provider.metrics');
 
     // Payments
-    Route::get('/bookings/{booking}/payment', [PaymentController::class, 'create'])->name('payments.create');
-    Route::post('/bookings/{booking}/payment', [PaymentController::class, 'store'])->name('payments.store');
-    Route::get('/payments/{booking}/{transaction}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
-    Route::post('/payments/{booking}/{transaction}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm.post');
-    Route::get('/payments/history', [PaymentController::class, 'history'])->name('payments.history');
-    Route::post('/bookings/process-payment', [PaymentController::class, 'processPayment'])->name('bookings.processPayment');
-    Route::post('/mpesa/callback', [PaymentController::class, 'mpesaCallback']);
-
-    // Parenting Modules
-    Route::prefix('parenting-modules')->name('parenting-modules.')->group(function () {
-        Route::get('/', [ParentingModuleController::class, 'index'])->name('index');
-        Route::get('/my-progress', [ParentingModuleController::class, 'myProgress'])->name('my-progress');
-        Route::get('/favorites', [ParentingModuleController::class, 'favorites'])->name('favorites');
-        Route::get('/recommendations', [ParentingModuleController::class, 'recommendations'])->name('recommendations');
-        Route::get('/{module}', [ParentingModuleController::class, 'show'])->name('show');
-        Route::get('/{module}/content/{content}', [ParentingModuleController::class, 'content'])->name('content');
-        Route::post('/{module}/progress', [ParentingModuleController::class, 'updateProgress'])->name('update-progress');
-        Route::post('/{module}/favorite', [ParentingModuleController::class, 'toggleFavorite'])->name('toggle-favorite');
-        Route::post('/{module}/rate', [ParentingModuleController::class, 'rate'])->name('rate');
-    });
-
-    // Training Modules
-    Route::prefix('training-modules')->name('training-modules.')->group(function () {
-        Route::get('/', [TrainingModuleController::class, 'index'])->name('index');
-        Route::get('/my-progress', [TrainingModuleController::class, 'myProgress'])->name('my-progress');
-        Route::get('/favorites', [TrainingModuleController::class, 'favorites'])->name('favorites');
-        Route::get('/{module}', [TrainingModuleController::class, 'show'])->name('show');
-        Route::get('/{module}/chat', [TrainingModuleController::class, 'chat'])->name('chat');
-        Route::post('/{module}/chat/message', [TrainingModuleController::class, 'sendMessage'])->name('chat.message');
-        Route::post('/{module}/progress', [TrainingModuleController::class, 'updateProgress'])->name('update-progress');
-        Route::post('/{module}/favorite', [TrainingModuleController::class, 'toggleFavorite'])->name('toggle-favorite');
-        Route::post('/{module}/rate', [TrainingModuleController::class, 'rate'])->name('rate');
-
-        // Admin routes for training modules
-        Route::middleware(['role:admin'])->group(function () {
-            Route::get('/create', [TrainingModuleController::class, 'create'])->name('create');
-            Route::post('/', [TrainingModuleController::class, 'store'])->name('store');
-            Route::get('/{module}/edit', [TrainingModuleController::class, 'edit'])->name('edit');
-            Route::put('/{module}', [TrainingModuleController::class, 'update'])->name('update');
-            Route::delete('/{module}', [TrainingModuleController::class, 'destroy'])->name('destroy');
-        });
-    });
-
-    // AI Chat
-    Route::prefix('ai-chat')->name('ai-chat.')->group(function () {
-        Route::get('/', [AiChatController::class, 'index'])->name('index');
-        Route::post('/message', [AiChatController::class, 'sendMessage'])->name('send-message');
-        Route::post('/new-session', [AiChatController::class, 'newSession'])->name('new-session');
-        Route::get('/conversation/{sessionId}', [AiChatController::class, 'getConversation'])->name('get-conversation');
-        Route::post('/generate-audio/{messageId}', [AiChatController::class, 'generateAudio'])->name('generate-audio');
-    });
-
-    // =====================
-    // Admin Routes
-    // =====================
-    Route::middleware(['role:admin'])->prefix('admin')->name('admin.')->group(function () {
-
-        Route::get('/dashboard', [AdminDashboardController::class, 'index'])->name('dashboard');
-
-        // Core Resources
-        Route::resource('users', UserController::class);
-        Route::resource('providers', ProviderController::class);
-        Route::resource('activities', AdminActivityController::class);
-        Route::resource('bookings', AdminBookingController::class);
-        Route::resource('clients', ProviderClientController::class);
-        Route::resource('categories', CategoryController::class);
-        Route::resource('services', ServiceController::class);
-        Route::resource('modules', ModuleController::class);
-
-        // Insights & Analytics
-        Route::prefix('analytics')->name('analytics.')->group(function () {
-            Route::get('/', [AnalyticsController::class, 'index'])->name('index');
-            Route::get('/performance', [AnalyticsController::class, 'performance'])->name('performance');
-            Route::get('/growth-trends', [AnalyticsController::class, 'growth'])->name('growth');
-            Route::get('/retention', [AnalyticsController::class, 'retention'])->name('retention');
-            Route::get('/engagement-heatmaps', [AnalyticsController::class, 'engagement'])->name('engagement');
-        });
-
-        Route::get('/service-insights', [ServiceInsightController::class, 'index'])->name('service.insights');
-        Route::get('/client-insights', [ClientInsightController::class, 'index'])->name('client.insights');
-        Route::get('/financial-insights', [FinancialInsightController::class, 'index'])->name('financial.insights');
-
-        // Finance & Earnings
-        Route::get('/finance/insights', [FinanceInsightsController::class, 'index'])->name('finance.insights');
-        Route::get('/earnings', [EarningsController::class, 'index'])->name('earnings');
-        Route::get('/invoices', [InvoicesController::class, 'index'])->name('invoices');
-        Route::get('/subscriptions', [SubscriptionsController::class, 'index'])->name('subscriptions');
-
-        // Team, Tasks, Feedback, Support
-        Route::view('/team', 'admin.team')->name('team');
-        Route::resource('tasks', \App\Http\Controllers\Admin\TaskController::class);
-        Route::post('/tasks/{task}/status', [\App\Http\Controllers\Admin\TaskController::class, 'updateStatus'])->name('tasks.update-status');
-        Route::get('/feedback', [AdminFeedbackController::class, 'index'])->name('feedback');
-        Route::view('/support', 'admin.support')->name('support');
-        Route::view('/notifications', 'admin.notifications')->name('notifications');
-
-        // Approvals
-        Route::resource('approvals', ApprovalController::class)->only(['index', 'show']);
-        Route::post('/approvals/{approval}/approve', [ApprovalController::class, 'approve'])->name('approvals.approve');
-        Route::post('/approvals/{approval}/reject', [ApprovalController::class, 'reject'])->name('approvals.reject');
-        Route::post('/approvals/bulk-action', [ApprovalController::class, 'bulkAction'])->name('approvals.bulk-action');
-
-        // Reports & System Pages
-        Route::get('/reports', [ReportController::class, 'index'])->name('reports');
-        Route::view('/roles', 'admin.roles')->name('roles');
-        Route::view('/settings', 'admin.settings')->name('settings');
-    });
-
-    // =====================
-    // Provider Routes
-    // =====================
-    Route::middleware(['role:provider'])->prefix('provider')->name('provider.')->group(function () {
-        Route::get('/dashboard', [\App\Http\Controllers\Provider\ProviderController::class, 'dashboard'])->name('dashboard');
-        Route::get('/register', [\App\Http\Controllers\Provider\ProviderController::class, 'register'])->name('register');
-        Route::post('/register', [\App\Http\Controllers\Provider\ProviderController::class, 'register'])->name('register.store');
-
-        Route::resource('services', ProviderServiceController::class);
-        Route::resource('bookings', ProviderBookingController::class);
-        Route::resource('clients', ProviderClientController::class);
-        Route::get('/payments', [ProviderPaymentController::class, 'index'])->name('payments');
-
-        Route::view('/support', 'provider.support')->name('support');
-        Route::view('/service-insights', 'provider.service-insights')->name('service.insights');
-        Route::view('/client-insights', 'provider.client-insights')->name('client.insights');
-        Route::view('/financial-insights', 'provider.financial-insights')->name('financial.insights');
-
-        // Activities Management
-        Route::get('/activities', [\App\Http\Controllers\Provider\ProviderController::class, 'activities'])->name('activities.index');
-        Route::get('/activities/create', [\App\Http\Controllers\Provider\ProviderController::class, 'createActivity'])->name('activities.create');
-        Route::post('/activities', [\App\Http\Controllers\Provider\ProviderController::class, 'createActivity'])->name('activities.store');
-        Route::get('/activities/{activity}/edit', [\App\Http\Controllers\Provider\ProviderController::class, 'editActivity'])->name('activities.edit');
-        Route::put('/activities/{activity}', [\App\Http\Controllers\Provider\ProviderController::class, 'editActivity'])->name('activities.update');
-        Route::delete('/activities/{activity}', [\App\Http\Controllers\Provider\ProviderController::class, 'deleteActivity'])->name('activities.destroy');
-
-        // Employee Management
-        Route::get('/employees', [\App\Http\Controllers\Provider\ProviderController::class, 'employees'])->name('employees.index');
-        Route::get('/employees/create', [\App\Http\Controllers\Provider\ProviderController::class, 'createEmployee'])->name('employees.create');
-        Route::post('/employees', [\App\Http\Controllers\Provider\ProviderController::class, 'createEmployee'])->name('employees.store');
-    });
-
-    // =====================
-    // Manager Routes
-    // =====================
-    Route::middleware(['role:manager'])->prefix('manager')->name('manager.')->group(function () {
-        Route::view('/team', 'manager.team')->name('team');
-        Route::view('/reports', 'manager.reports')->name('reports');
-    });
-
-    // =====================
-    // Employee Routes
-    // =====================
-    Route::middleware(['role:employee'])->prefix('employee')->name('employee.')->group(function () {
-        Route::view('/profile', 'employee.profile')->name('profile');
-        Route::view('/tasks', 'employee.tasks')->name('tasks');
-    });
+    Route::post('payments/process', [\App\Http\Controllers\PaymentController::class, 'process'])->name('payments.process');
+    Route::post('payments/mpesa/callback', [\App\Http\Controllers\PaymentController::class, 'mpesaCallback'])->name('payments.mpesa.callback');
 });
 
-// Breeze auth
-require __DIR__ . '/auth.php';
+/*
+|--------------------------------------------------------------------------
+| Admin Routes
+|--------------------------------------------------------------------------
+*/
+Route::middleware(['auth', 'role:super-admin'])->prefix('admin')->name('admin.')->group(function () {
+    // User management
+    Route::get('users', [\App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.index');
+    Route::post('users/{id}/update-role', [\App\Http\Controllers\Admin\UserManagementController::class, 'updateRole'])->name('users.update-role');
+
+    // Documents
+    Route::get('documents', [\App\Http\Controllers\DocumentAdminController::class, 'index'])->name('documents.index');
+    Route::delete('documents/{id}', [\App\Http\Controllers\DocumentAdminController::class, 'destroy'])->name('documents.destroy');
+
+    // Activities
+    Route::resource('activities', \AppHttp\Controllers\ActivityController::class);
+
+    // Providers
+    Route::resource('providers', \App\Http\Controllers\ProviderController::class);
+
+    // Approvals
+    Route::resource('approvals', \App\Http\Controllers\ApprovalController::class);
+    Route::post('approvals/bulk-action', [\App\Http\Controllers\ApprovalController::class, 'bulkAction'])->name('approvals.bulk-action');
+
+    // Modules
+    Route::resource('modules', \App\Http\Controllers\ModuleController::class);
+
+    // Roles
+    Route::resource('roles', \App\Http\Controllers\RoleController::class);
+
+    // Services
+    Route::resource('services', \App\Http\Controllers\ServiceController::class);
+
+    // Categories
+    Route::resource('categories', \App\Http\Controllers\CategoryController::class);
+
+    // Clients
+    Route::resource('clients', \App\Http\Controllers\ProviderClientController::class);
+
+    // Bookings
+    Route::resource('bookings', \App\Http\Controllers\Admin\AdminBookingController::class);
+
+    // Analytics
+    Route::get('analytics', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'index'])->name('analytics');
+    Route::get('analytics/performance', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'performance'])->name('analytics.performance');
+    Route::get('analytics/growth-trends', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'growthTrends'])->name('analytics.growth-trends');
+    Route::get('analytics/retention', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'retention'])->name('analytics.retention');
+    Route::get('analytics/engagement-heatmaps', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'engagementHeatmaps'])->name('analytics.engagement-heatmaps');
+});
+
+// Optional diagnostics include
+if (file_exists(__DIR__.'/diagnose_missing_routes.php')) {
+    require __DIR__.'/diagnose_missing_routes.php';
+}
+
+// Fallback route
+Route::fallback(function(){
+    return response()->view('errors.404', [], 404);
+});
+

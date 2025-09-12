@@ -84,6 +84,8 @@ class ProviderController extends Controller
 
             // Check if user already has a provider
             $existingProvider = ServiceProvider::where('user_id', $user->id)->first();
+
+            dd($existingProvider);
             if ($existingProvider) {
                 return redirect()->route('provider.dashboard')->with('info', 'You already have a provider profile.');
             }

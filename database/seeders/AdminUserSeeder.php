@@ -3,36 +3,37 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 use App\Models\User;
 use App\Models\Role;
-use Illuminate\Support\Facades\Hash;
 
 class AdminUserSeeder extends Seeder
 {
     public function run(): void
     {
-        $adminRole = Role::where('slug', 'admin')->first();
-
-        // Create the requested admin user
-        User::firstOrCreate(
-            ['email' => 'shafiosore@gmail.com'],
-            [
-                'name' => 'Admin User',
-                'password' => Hash::make('password'),
-                'role_id' => $adminRole->id,
-                'is_active' => true,
-            ]
+        // Ensure super-admin role exists
+        $adminRole = Role::firstOrCreate(
+            ['slug' => 'super-admin'],
+            ['name' => 'Super Admin', 'description' => 'Platform administrator']
         );
 
-        // Also create the default admin user
-        User::firstOrCreate(
-            ['email' => 'admin@infanect.com'],
-            [
-                'name' => 'Super Admin',
-                'password' => Hash::make('password123'),
-                'role_id' => $adminRole->id,
-                'is_active' => true,
-            ]
-        );
+        // Create or update admin user(s) idempotently
+        $admins = [
+            ['email' => 'admin@infanect.local', 'name' => 'Platform Admin', 'password' => 'password'],
+            ['email' => 'shafiosore@gmail.com', 'name' => 'Admin User', 'password' => 'password'],
+        ];
+
+        foreach ($admins as $a) {
+            User::updateOrCreate(
+                ['email' => $a['email']],
+                [
+                    'name' => $a['name'],
+                    'password' => Hash::make($a['password']),
+                    'role_id' => $adminRole->id,
+                    'is_active' => true,
+                    'email_verified_at' => now(),
+                ]
+            );
+        }
     }
 }

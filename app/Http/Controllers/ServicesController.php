@@ -17,7 +17,7 @@ class ServicesController extends Controller
         $user = auth()->user();
 
         // Check if user can list services
-        if (!$user->canListServices()) {
+        if (!$user || !$user->canListServices()) {
             abort(403, 'You do not have permission to view services.');
         }
 

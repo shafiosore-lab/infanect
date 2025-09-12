@@ -37,7 +37,7 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be cast.
+     * The
      *
      * @return array<string, string>
      */
@@ -55,7 +55,7 @@ class User extends Authenticatable
      ========================== */
     public function role()
     {
-        return $this->belongsTo(Role::class);
+        return $this->belongsTo(\App\Models\Role::class);
     }
 
     public function services(): HasMany
@@ -71,6 +71,70 @@ class User extends Authenticatable
     public function moduleProgress(): HasMany
     {
         return $this->hasMany(UserModuleProgress::class, 'user_id');
+    }
+
+    public function providerBookings()
+    {
+        return $this->hasMany(\App\Models\Booking::class, 'provider_id');
+    }
+
+    public function providerServices()
+    {
+        return $this->hasMany(\App\Models\Service::class, 'provider_id');
+    }
+
+    public function providerProfile()
+    {
+        return $this->hasOne(\App\Models\ProviderProfile::class, 'user_id');
+    }
+
+    /**
+     * Check if the user has a given role.
+     * Accepts role id, slug, or name.
+     */
+    public function hasRole($role): bool
+    {
+        if (is_null($role)) {
+            return false;
+        }
+
+        // If role relation is loaded
+        if ($this->relationLoaded('role') && $this->role) {
+            $r = $this->role;
+            if (is_int($role) && $r->id == $role) return true;
+            if (is_string($role) && (isset($r->slug) && $r->slug === $role)) return true;
+            if (is_string($role) && (isset($r->name) && $r->name === $role)) return true;
+        }
+
+        // If a numeric id was provided and role_id exists
+        if (is_numeric($role) && isset($this->role_id)) {
+            return intval($this->role_id) === intval($role);
+        }
+
+        // As a fallback, check against Role table for slug or name
+        if (is_string($role)) {
+            try {
+                $roleModel = \App\Models\Role::where('slug', $role)->orWhere('name', $role)->first();
+                if ($roleModel && isset($this->role_id)) {
+                    return intval($this->role_id) === intval($roleModel->id);
+                }
+            } catch (\Throwable $e) {
+                // ignore DB errors
+            }
+        }
+
+        return false;
+    }
+
+    /** Check if user has a given role slug */
+    public function hasRoleSlug(string $slug): bool
+    {
+        // If using spatie/permission
+        if (method_exists($this, 'hasRole')) {
+            try { return $this->hasRole($slug); } catch (\Exception $e) { /* ignore */ }
+        }
+
+        return strtolower($this->role ?? '') === strtolower($slug);
     }
 
     /* ==========================
@@ -103,45 +167,53 @@ class User extends Authenticatable
     /* ==========================
      | Role Checks
      ========================== */
-    public function hasRole($role): bool
+    public function isClient(): bool
     {
-        return $this->role && $this->role->slug === $role;
+        return $this->hasRole('employee') || $this->hasRole('client') || $this->hasRole('user');
     }
 
-    public function isSuperAdmin(): bool
+    public function isProvider(): bool
     {
-        return $this->hasRole('super-admin');
+        return $this->hasRole('provider') || $this->hasRole('service_provider');
     }
 
-    public function isServiceProvider(): bool
-    {
-        return $this->hasRole('service-provider');
-    }
-
-    public function isActivityProvider(): bool
-    {
-        return $this->hasRole('activity-provider');
-    }
-
-    public function isEmployee(): bool
-    {
-        return $this->hasRole('employee');
-    }
-
-    public function isUser(): bool
-    {
-        return $this->hasRole('user');
-    }
-
-    // Legacy methods for backward compatibility
     public function isAdmin(): bool
     {
-        return $this->isSuperAdmin();
+        return $this->hasRole('admin') || $this->hasRole('super-admin') || $this->hasRole('super_admin');
     }
 
     public function isManager(): bool
     {
-        return $this->isSuperAdmin(); // Manager role now maps to Super Admin
+        return $this->hasRole('manager');
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->hasRole('super-admin') || $this->hasRole('super_admin') || $this->hasRole('superadmin');
+    }
+
+    public function isServiceProvider(): bool
+    {
+        return $this->hasRole('provider')
+            || $this->hasRole('service_provider')
+            || $this->hasRole('professional_provider')
+            || $this->hasRole('bonding_provider');
+    }
+
+    public function isActivityProvider(): bool
+    {
+        return $this->hasRole('bonding_provider')
+            || $this->hasRole('activity_provider')
+            || $this->hasRole('provider')
+            || $this->hasRole('service_provider');
+    }
+
+    public function isUser(): bool
+    {
+        return $this->hasRole('user')
+            || $this->hasRole('client')
+            || $this->hasRole('employee')
+            || $this->hasRole('member');
     }
 
     /* ==========================
@@ -228,6 +300,30 @@ class User extends Authenticatable
     public function canLeaveReviews(): bool
     {
         return $this->isUser();
+    }
+
+    /** Check permission using spatie or fallback mapping */
+    public function hasPermission(string $perm): bool
+    {
+        if (method_exists($this, 'hasPermissionTo')) {
+            try { return $this->hasPermissionTo($perm); } catch (\Exception $e) { /* ignore */ }
+        }
+
+        if ($this->isSuperAdmin()) return true;
+
+        $providerPerms = ['manage services','view bookings','manage clients','view notifications'];
+        if (in_array($perm, $providerPerms) && $this->isProvider()) return true;
+
+        $clientPerms = ['submit mood','view recommendations'];
+        if (in_array($perm, $clientPerms) && $this->isClient()) return true;
+
+        return false;
+    }
+
+    /** Helper to check if provider account is approved */
+    public function providerApproved(): bool
+    {
+        return $this->isProvider() && strtolower($this->provider_status ?? '') === 'approved';
     }
 
     /* ==========================

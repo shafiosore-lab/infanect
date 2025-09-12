@@ -3,13 +3,14 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\ServiceProvider;
-use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class ServiceProviderSeeder extends Seeder
 {
     public function run(): void
     {
+        if (!\Schema::hasTable('service_providers')) return;
+
         $providers = [
             [
                 'name' => 'Little Stars Childcare',
@@ -123,8 +124,18 @@ class ServiceProviderSeeder extends Seeder
             ],
         ];
 
-        foreach ($providers as $providerData) {
-            ServiceProvider::create($providerData);
+        foreach ($providers as $p) {
+            $email = strtolower(trim($p['email'] ?? ''));
+            if (!$email) continue;
+
+            // Use updateOrInsert to avoid duplicate-key errors
+            DB::table('service_providers')->updateOrInsert(
+                ['email' => $email],
+                array_merge($p, [
+                    'updated_at' => now(),
+                    'created_at' => now(),
+                ])
+            );
         }
     }
 }

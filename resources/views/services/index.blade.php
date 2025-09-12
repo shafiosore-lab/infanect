@@ -136,12 +136,12 @@
                             <div class="flex items-center space-x-3 mb-4">
                                 <div class="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
                                     <span class="text-white font-semibold text-xs">
-                                        {{ substr($service->user->name ?? 'P', 0, 1) }}
+                                        {{ $service->user ? substr($service->user->name ?? 'P', 0, 1) : 'P' }}
                                     </span>
                                 </div>
                                 <div>
-                                    <p class="text-sm font-medium text-gray-900">{{ $service->user->name ?? __('services.provider') }}</p>
-                                    <p class="text-xs text-gray-500">{{ $service->user->city ?? '' }}</p>
+                                    <p class="text-sm font-medium text-gray-900">{{ $service->user ? ($service->user->name ?? __('services.provider')) : __('services.provider') }}</p>
+                                    <p class="text-xs text-gray-500">{{ $service->user ? ($service->user->city ?? '') : '' }}</p>
                                 </div>
                             </div>
 

@@ -6,6 +6,9 @@ use Illuminate\Http\Request;
 use App\Models\Booking;
 use App\Models\Activity;
 use App\Models\Service;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class UserBookingController extends Controller
 {
@@ -14,35 +17,47 @@ class UserBookingController extends Controller
      */
     public function index(Request $request)
     {
+        $user = Auth::user();
+        if (! $user) {
+            return redirect()->route('login');
+        }
+
+        // If bookings table doesn't exist, return empty collection to the view
+        if (! Schema::hasTable('bookings')) {
+            return view('bookings.index', ['bookings' => collect()]);
+        }
+
         $request->validate([
             'direction' => 'nullable|in:asc,desc',
             'sort' => 'nullable|string'
         ]);
 
-        $user = auth()->user();
+        $perPage = 15;
 
-        $query = Booking::with(['activity', 'service', 'provider'])
-                        ->where('user_id', $user->id);
+        // Prefer Eloquent model if it exists
+        if (class_exists(\App\Models\Booking::class)) {
+            try {
+                $query = \App\Models\Booking::query()->where('user_id', $user->id)->orderBy('created_at', 'desc');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
+                // eager load common relations if they exist
+                $with = [];
+                if (method_exists(\App\Models\Booking::class, 'service')) $with[] = 'service';
+                if (method_exists(\App\Models\Booking::class, 'provider')) $with[] = 'provider';
+                if (! empty($with)) $query->with($with);
+
+                $bookings = $query->paginate($perPage);
+            } catch (\Throwable $e) {
+                // fallback to query builder
+                $bookings = DB::table('bookings')->where('user_id', $user->id)->orderBy('created_at', 'desc')->paginate($perPage);
+            }
+        } else {
+            // fallback to query builder
+            try {
+                $bookings = DB::table('bookings')->where('user_id', $user->id)->orderBy('created_at', 'desc')->paginate($perPage);
+            } catch (\Throwable $e) {
+                $bookings = collect();
+            }
         }
-
-        if ($request->filled('date_from')) {
-            $query->where('scheduled_at', '>=', $request->date_from);
-        }
-
-        if ($request->filled('date_to')) {
-            $query->where('scheduled_at', '<=', $request->date_to);
-        }
-
-        $allowedSorts = ['created_at', 'scheduled_at', 'amount'];
-        $sortBy = in_array($request->get('sort', 'created_at'), $allowedSorts) ? $request->get('sort', 'created_at') : 'created_at';
-        $sortDirection = in_array(strtolower($request->get('direction', 'desc')), ['asc','desc']) ? strtolower($request->get('direction', 'desc')) : 'desc';
-
-        $query->orderBy($sortBy, $sortDirection);
-
-        $bookings = $query->paginate(10);
 
         return view('bookings.index', compact('bookings'));
     }

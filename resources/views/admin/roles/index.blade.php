@@ -46,5 +46,33 @@
     </div>
 
     {{ $roles->links() }}
+
+    <div class="mt-8">
+        <h2 class="text-2xl font-semibold mb-4">User Roles</h2>
+        <table class="w-full bg-white rounded shadow">
+            <thead>
+                <tr class="text-left p-2">
+                    <th class="p-2">ID</th>
+                    <th class="p-2">Name</th>
+                    <th class="p-2">Email</th>
+                    <th class="p-2">Role</th>
+                    <th class="p-2">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($users as $u)
+                <tr>
+                    <td class="p-2">{{ $u->id }}</td>
+                    <td class="p-2">{{ $u->name }}</td>
+                    <td class="p-2">{{ $u->email }}</td>
+                    <td class="p-2">{{ $u->role }}</td>
+                    <td class="p-2"><a href="{{ route('admin.roles.management.edit', $u) }}" class="text-blue-600">Edit</a></td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        <div class="mt-4">{{ $users->links() }}</div>
+    </div>
 </div>
 @endsection

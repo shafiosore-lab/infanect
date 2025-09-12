@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Provider;
+use App\Models\User;
 
 class ProviderSeeder extends Seeder
 {
@@ -12,96 +13,67 @@ class ProviderSeeder extends Seeder
      */
     public function run(): void
     {
+        $faker = \Faker\Factory::create();
+
         $providers = [
             [
-                'name'          => 'Mindful Space Therapy',
-                'service_type'  => 'Therapy & Counseling',
-                'email'         => 'contact@mindfulspace.com',
-                'phone'         => '+1-202-555-0101',
-                'country_code'  => 'US',
-                'city'          => 'New York',
-                'state'         => 'NY',
-                'address'       => '123 Madison Ave',
-                'postal_code'   => '10016',
-                'latitude'      => 40.7128,
-                'longitude'     => -74.0060,
-                'is_available'  => true,
-                'avg_rating'    => 4.7,
-                'total_reviews' => 120,
-                'total_revenue' => 25000.50,
+                'name' => 'Dr. Sarah Johnson',
+                'location' => 'North America',
+                'rating' => 4.9,
+                'services' => ['Bonding Activities', 'Family Counseling'],
+                'bio' => 'Specializes in strengthening parent-child bonds through evidence-based therapeutic techniques.',
+                'price' => 120.00,
+                'image_url' => 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?ixlib=rb-4.0.3&auto=format&fit=crop&w=112&h=112&q=85'
             ],
             [
-                'name'          => 'Nairobi Family Bonding',
-                'service_type'  => 'Bonding Activities',
-                'email'         => 'info@nairobi-bonding.ke',
-                'phone'         => '+254-700-123456',
-                'country_code'  => 'KE',
-                'city'          => 'Nairobi',
-                'state'         => 'Nairobi',
-                'address'       => 'Kenyatta Avenue',
-                'postal_code'   => '00100',
-                'latitude'      => -1.2921,
-                'longitude'     => 36.8219,
-                'is_available'  => true,
-                'avg_rating'    => 4.5,
-                'total_reviews' => 95,
-                'total_revenue' => 18000.00,
+                'name' => 'Maria Rodriguez',
+                'location' => 'Europe',
+                'rating' => 4.8,
+                'services' => ['Parenting Education', 'Family Counseling'],
+                'bio' => 'Expert in multicultural family dynamics and bilingual therapy approaches.',
+                'price' => 110.00,
+                'image_url' => 'https://images.unsplash.com/photo-1594824388511-923247e6e01e?ixlib=rb-4.0.3&auto=format&fit=crop&w=112&h=112&q=85'
             ],
             [
-                'name'          => 'Tokyo Kids Connect',
-                'service_type'  => 'Child Development',
-                'email'         => 'support@kidsconnect.jp',
-                'phone'         => '+81-3-1234-5678',
-                'country_code'  => 'JP',
-                'city'          => 'Tokyo',
-                'state'         => 'Tokyo',
-                'address'       => 'Shibuya Crossing',
-                'postal_code'   => '150-0002',
-                'latitude'      => 35.6895,
-                'longitude'     => 139.6917,
-                'is_available'  => false,
-                'avg_rating'    => 4.8,
-                'total_reviews' => 200,
-                'total_revenue' => 40000.75,
+                'name' => 'Dr. Ahmed Hassan',
+                'location' => 'Asia',
+                'rating' => 4.7,
+                'services' => ['Bonding Activities', 'Parenting Education'],
+                'bio' => 'Focuses on attachment theory and trauma-informed care to help families heal.',
+                'price' => 100.00,
+                'image_url' => 'https://images.unsplash.com/photo-1612349317150-e3d4ac1d0e35?ixlib=rb-4.0.3&auto=format&fit=crop&w=112&h=112&q=85'
             ],
             [
-                'name'          => 'Berlin Parent-Child Hub',
-                'service_type'  => 'Workshops & Training',
-                'email'         => 'hello@pchildhub.de',
-                'phone'         => '+49-30-123456',
-                'country_code'  => 'DE',
-                'city'          => 'Berlin',
-                'state'         => 'Berlin',
-                'address'       => 'Alexanderplatz 5',
-                'postal_code'   => '10178',
-                'latitude'      => 52.5200,
-                'longitude'     => 13.4050,
-                'is_available'  => true,
-                'avg_rating'    => 4.3,
-                'total_reviews' => 70,
-                'total_revenue' => 15000.00,
+                'name' => 'Emma Thompson',
+                'location' => 'Oceania',
+                'rating' => 4.6,
+                'services' => ['Family Counseling', 'Bonding Activities'],
+                'bio' => 'Dedicated to supporting families through life transitions with compassionate guidance.',
+                'price' => 95.00,
+                'image_url' => 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?ixlib=rb-4.0.3&auto=format&fit=crop&w=112&h=112&q=85'
             ],
             [
-                'name'          => 'Mumbai Bonding Activities',
-                'service_type'  => 'Outdoor Events',
-                'email'         => 'events@bonding.in',
-                'phone'         => '+91-9876543210',
-                'country_code'  => 'IN',
-                'city'          => 'Mumbai',
-                'state'         => 'Maharashtra',
-                'address'       => 'Marine Drive',
-                'postal_code'   => '400001',
-                'latitude'      => 19.0760,
-                'longitude'     => 72.8777,
-                'is_available'  => true,
-                'avg_rating'    => 4.6,
-                'total_reviews' => 150,
-                'total_revenue' => 30000.00,
+                'name' => 'Dr. Michael Chen',
+                'location' => 'North America',
+                'rating' => 4.8,
+                'services' => ['Parenting Education', 'Family Counseling'],
+                'bio' => 'Specializes in child development and positive parenting strategies.',
+                'price' => 130.00,
+                'image_url' => null
             ],
+            [
+                'name' => 'Isabella Silva',
+                'location' => 'Europe',
+                'rating' => 4.5,
+                'services' => ['Bonding Activities', 'Parenting Education'],
+                'bio' => 'Creative therapist using art and play-based interventions for families.',
+                'price' => 105.00,
+                'image_url' => null
+            ]
         ];
 
-        foreach ($providers as $data) {
-            Provider::create($data);
+        foreach ($providers as $provider) {
+            Provider::create($provider);
         }
     }
 }
