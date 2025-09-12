@@ -3,8 +3,13 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use App\Models\User;
 use App\Models\Provider;
-use App\Models\Review;
+use App\Models\Role;
+use App\Jobs\ProcessKYCDocuments;
 use App\Events\NewContentCreated;
 
 class ProviderController extends Controller
@@ -73,31 +78,152 @@ class ProviderController extends Controller
     }
 
     /**
+     * Register a new provider.
+     */
+    public function register()
+    {
+        $providerTypes = config('provider.types', []);
+        $kycDocuments = config('provider.kyc_documents', []);
+
+        return view('auth.provider-register', compact('providerTypes', 'kycDocuments'));
+    }
+
+    /**
      * Store a newly created provider and broadcast it live.
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'name'  => 'required|string|max:255',
-            'bio'   => 'nullable|string',
-            'email' => 'nullable|email',
+        // Dynamic validation based on provider type
+        $providerType = $request->input('provider_type');
+        $typeConfig = collect(config('provider.types'))->firstWhere('slug', $providerType);
+
+        if (!$typeConfig) {
+            return back()->withErrors(['provider_type' => 'Invalid provider type selected.']);
+        }
+
+        // Base validation rules
+        $rules = [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
             'phone' => 'nullable|string|max:20',
-        ]);
+            'provider_type' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+            'business_name' => 'nullable|string|max:255',
+            'business_description' => 'nullable|string|max:1000',
+            'website' => 'nullable|url|max:255',
+            'address' => 'nullable|string|max:500',
+            'city' => 'nullable|string|max:100',
+            'state' => 'nullable|string|max:100',
+            'country' => 'nullable|string|max:100',
+            'postal_code' => 'nullable|string|max:20',
+            'specializations' => 'nullable|array',
+            'years_experience' => 'nullable|integer|min:0|max:50',
+            'hourly_rate' => 'nullable|numeric|min:0',
+            'availability' => 'nullable|array'
+        ];
 
-        $provider = Provider::create($validated);
+        // Add dynamic document validation based on provider type
+        $requiredDocs = $typeConfig['required_documents'] ?? [];
+        foreach ($requiredDocs as $docKey) {
+            $rules[$docKey] = 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'; // 5MB max
+        }
 
-        // Render only the new provider card
-        $html = view('partials.activities-services-providers', [
-            'activities' => collect(),
-            'services'   => collect(),
-            'providers'  => collect([$provider]),
-        ])->render();
+        // Optional documents
+        $kycDocuments = config('provider.kyc_documents', []);
+        foreach ($kycDocuments as $docKey => $docConfig) {
+            if (!in_array($docKey, $requiredDocs)) {
+                $rules[$docKey] = 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240'; // 10MB max
+            }
+        }
 
-        // Broadcast via Laravel Echo
-        broadcast(new NewContentCreated($html))->toOthers();
+        $validated = $request->validate($rules);
 
-        return redirect()->route('providers.index')
-                         ->with('success', 'Provider created successfully and broadcasted!');
+        DB::beginTransaction();
+
+        try {
+            // Create user account
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'password' => Hash::make($validated['password']),
+                'role_id' => $providerType, // Store provider type as role
+                'provider_data' => json_encode([
+                    'provider_type' => $providerType,
+                    'registration_stage' => 'kyc_pending'
+                ])
+            ]);
+
+            // Create provider profile
+            $providerData = [
+                'user_id' => $user->id,
+                'provider_type' => $providerType,
+                'business_name' => $validated['business_name'] ?? $validated['name'],
+                'business_description' => $validated['business_description'] ?? null,
+                'website' => $validated['website'] ?? null,
+                'address' => $validated['address'] ?? null,
+                'city' => $validated['city'] ?? null,
+                'state' => $validated['state'] ?? null,
+                'country' => $validated['country'] ?? null,
+                'postal_code' => $validated['postal_code'] ?? null,
+                'specializations' => json_encode($validated['specializations'] ?? []),
+                'years_experience' => $validated['years_experience'] ?? null,
+                'hourly_rate' => $validated['hourly_rate'] ?? null,
+                'availability' => json_encode($validated['availability'] ?? []),
+                'status' => 'pending',
+                'kyc_status' => 'pending',
+                'created_at' => now(),
+                'updated_at' => now()
+            ];
+
+            $provider = Provider::create($providerData);
+
+            // Handle file uploads
+            $uploadedDocuments = [];
+            foreach ($kycDocuments as $docKey => $docConfig) {
+                if ($request->hasFile($docKey)) {
+                    $file = $request->file($docKey);
+                    $filename = $docKey . '_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
+                    $path = $file->storeAs('kyc-documents/' . $user->id, $filename, 'private');
+
+                    $uploadedDocuments[$docKey] = [
+                        'original_name' => $file->getClientOriginalName(),
+                        'stored_path' => $path,
+                        'file_size' => $file->getSize(),
+                        'mime_type' => $file->getMimeType(),
+                        'uploaded_at' => now()
+                    ];
+                }
+            }
+
+            // Update provider with document info
+            $provider->update([
+                'kyc_documents' => json_encode($uploadedDocuments)
+            ]);
+
+            // Dispatch KYC processing job
+            ProcessKYCDocuments::dispatch($provider->id);
+
+            DB::commit();
+
+            return redirect()
+                ->route('login')
+                ->with('success', 'Provider registration submitted successfully! Please check your email for verification instructions. Your account will be reviewed within 24-48 hours.');
+
+        } catch (\Exception $e) {
+            DB::rollback();
+
+            // Clean up any uploaded files
+            foreach ($uploadedDocuments ?? [] as $doc) {
+                if (Storage::disk('private')->exists($doc['stored_path'])) {
+                    Storage::disk('private')->delete($doc['stored_path']);
+                }
+            }
+
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Registration failed. Please try again.']);
+        }
     }
 
     /**

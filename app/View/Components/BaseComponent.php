@@ -5,11 +5,15 @@ namespace App\View\Components;
 use App\Traits\StringableData;
 use Illuminate\View\Component;
 use BackedEnum;
+use Illuminate\Support\Facades\Log;
 
 class BaseComponent extends Component
 {
     use StringableData;
 
+    /**
+     * Magic getter that safely converts values to strings
+     */
     public function __get($key)
     {
         $value = $this->$key ?? null;
@@ -17,57 +21,89 @@ class BaseComponent extends Component
     }
 
     /**
-     * Convert various values to safe strings for Blade.
+     * Convert various values to safe strings for Blade with enhanced error handling.
      */
     protected function stringifyValue(mixed $value): string
     {
-        if (is_null($value)) {
-            return '';
-        }
+        try {
+            if (is_null($value)) {
+                return '';
+            }
 
-        if ($value instanceof BackedEnum) {
-            return (string) $value->value;
-        }
+            if ($value instanceof BackedEnum) {
+                return (string) $value->value;
+            }
 
-        if (is_string($value) || is_numeric($value)) {
-            return (string) $value;
-        }
-
-        if (is_bool($value)) {
-            return $value ? '1' : '0';
-        }
-
-        if (is_array($value)) {
-            // Recursively stringify array values
-            return implode(' ', array_map(fn($v) => $this->stringifyValue($v), $value));
-        }
-
-        if (is_object($value)) {
-            // If object has __toString, use it
-            if (method_exists($value, '__toString')) {
+            if (is_string($value) || is_numeric($value)) {
                 return (string) $value;
             }
 
-            // For common models, try to return id or name
-            if (property_exists($value, 'name')) {
-                return (string) $value->name;
-            }
-            if (property_exists($value, 'title')) {
-                return (string) $value->title;
-            }
-            if (property_exists($value, 'id')) {
-                return (string) $value->id;
+            if (is_bool($value)) {
+                return $value ? '1' : '0';
             }
 
-            // Fallback to json encode
-            try {
-                return json_encode($value);
-            } catch (\Throwable $e) {
-                return '';
+            if (is_array($value)) {
+                // Handle nested arrays safely
+                $stringifiedArray = array_map(function($v) {
+                    return $this->stringifyValue($v);
+                }, $value);
+                return implode(' ', array_filter($stringifiedArray));
             }
+
+            if (is_object($value)) {
+                // Enhanced object handling for Laravel models and common objects
+                if (method_exists($value, '__toString')) {
+                    return (string) $value;
+                }
+
+                // Handle Laravel models
+                if (method_exists($value, 'getKey') && $value->getKey()) {
+                    return (string) $value->getKey();
+                }
+
+                // Try common properties in order of preference
+                $properties = ['name', 'title', 'label', 'slug', 'id', 'key'];
+                foreach ($properties as $prop) {
+                    if (property_exists($value, $prop) && !is_null($value->$prop)) {
+                        return (string) $value->$prop;
+                    }
+                }
+
+                // For collections, try to get count
+                if (method_exists($value, 'count')) {
+                    return (string) $value->count();
+                }
+
+                // Last resort: safe JSON encode
+                return $this->safeJsonEncode($value);
+            }
+
+            return (string) $value;
+
+        } catch (\Throwable $e) {
+            // Log the error but don't break the view
+            Log::warning('BaseComponent stringification error', [
+                'value_type' => gettype($value),
+                'error' => $e->getMessage(),
+                'component' => static::class
+            ]);
+
+            return '';
         }
+    }
 
-        return (string) $value;
+    /**
+     * Safely encode objects to JSON
+     */
+    private function safeJsonEncode($value): string
+    {
+        try {
+            $encoded = json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            // Truncate very long JSON strings to prevent UI issues
+            return strlen($encoded) > 100 ? substr($encoded, 0, 97) . '...' : $encoded;
+        } catch (\Throwable $e) {
+            return '[Object]';
+        }
     }
 
     /**
@@ -76,8 +112,13 @@ class BaseComponent extends Component
     public function toArray(): array
     {
         $props = [];
-        foreach (get_object_vars($this) as $key => $value) {
-            $props[$key] = $this->stringifyValue($value);
+        $reflection = new \ReflectionClass($this);
+
+        foreach ($reflection->getProperties(\ReflectionProperty::IS_PUBLIC) as $property) {
+            $name = $property->getName();
+            if ($name !== 'componentName' && $name !== 'except') {
+                $props[$name] = $this->stringifyValue($this->$name ?? null);
+            }
         }
 
         return $props;
@@ -88,20 +129,69 @@ class BaseComponent extends Component
      */
     public function data(): array
     {
-        return $this->toArray();
+        return array_merge($this->toArray(), [
+            // Add component metadata
+            '_component' => static::class,
+            '_safe_mode' => true
+        ]);
     }
 
+    /**
+     * Enhanced render method with error boundaries
+     */
     public function render()
     {
         return function (array $data) {
-            // Ensure any data passed into the component view is sanitized
-            foreach ($data as $k => $v) {
-                if (is_array($v)) {
-                    $data[$k] = $this->stringifyValue($v);
+            try {
+                // Ensure any data passed into the component view is sanitized
+                foreach ($data as $k => $v) {
+                    if (is_array($v) || is_object($v)) {
+                        $data[$k] = $this->stringifyValue($v);
+                    }
                 }
-            }
 
-            return $data['slot'] ?? '';
+                return $data;
+
+            } catch (\Throwable $e) {
+                Log::error('BaseComponent render error', [
+                    'component' => static::class,
+                    'error' => $e->getMessage(),
+                    'data_keys' => array_keys($data)
+                ]);
+
+                // Return safe fallback data
+                return [
+                    '_error' => 'Component render failed',
+                    '_component' => static::class
+                ];
+            }
         };
+    }
+
+    /**
+     * Check if a route exists before generating URL
+     */
+    protected function safeRoute(string $name, array $parameters = []): string
+    {
+        try {
+            if (\Illuminate\Support\Facades\Route::has($name)) {
+                return route($name, $parameters);
+            }
+            return '#';
+        } catch (\Throwable $e) {
+            return '#';
+        }
+    }
+
+    /**
+     * Safe asset URL generation
+     */
+    protected function safeAsset(string $path): string
+    {
+        try {
+            return asset($path);
+        } catch (\Throwable $e) {
+            return '';
+        }
     }
 }

@@ -5,37 +5,53 @@ namespace App\Http\Controllers\Provider;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Service;
 
 class AvailabilityController extends Controller
 {
-    public function edit($serviceId)
+    /**
+     * Show availability edit form for a service.
+     */
+    public function edit(Service $service)
     {
-        $service = \App\Models\Service::findOrFail($serviceId);
         $this->authorize('update', $service);
 
-        return view('provider.services.availability', ['service' => $service]);
+        return view('provider.services.availability', compact('service'));
     }
 
-    public function update(Request $request, $serviceId)
+    /**
+     * Update availability for a service.
+     */
+    public function update(Request $request, Service $service)
     {
-        $service = \App\Models\Service::findOrFail($serviceId);
         $this->authorize('update', $service);
 
-        $data = $request->validate([
-            'availability' => 'present|array',
+        $validated = $request->validate([
+            'availability' => 'required|array',
+            'availability.*.day' => 'required|string',
+            'availability.*.slots' => 'required|array',
+            'availability.*.slots.*' => 'date_format:H:i', // example: 09:00
         ]);
 
-        $service->availability = $data['availability'];
+        $service->availability = $validated['availability'];
         $service->save();
 
-        return redirect()->route('provider.services.availability.edit', $service->id)->with('status', 'Availability updated');
+        return redirect()
+            ->route('provider.services.availability.edit', $service->id)
+            ->with('status', 'Availability updated successfully.');
     }
 
-    public function slots(Request $request, $serviceId)
+    /**
+     * Get available slots for a given date.
+     */
+    public function slots(Request $request, Service $service)
     {
-        $date = $request->query('date', now()->toDateString());
-        $service = \App\Models\Service::findOrFail($serviceId);
+        $this->authorize('view', $service);
 
-        return response()->json(['slots' => $service->availableSlots($date)]);
+        $date = $request->query('date', now()->toDateString());
+
+        return response()->json([
+            'slots' => $service->availableSlots($date),
+        ]);
     }
 }

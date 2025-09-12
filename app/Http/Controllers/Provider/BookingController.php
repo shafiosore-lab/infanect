@@ -5,62 +5,56 @@ namespace App\Http\Controllers\Provider;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Booking;
-use App\Models\Activity;
 use App\Models\ServiceProvider;
 use Illuminate\Support\Facades\Auth;
 
 class BookingController extends Controller
 {
+    /**
+     * Display a list of bookings for the provider.
+     */
     public function index()
     {
-        $user = Auth::user();
-        $provider = ServiceProvider::where('user_id', $user->id)->first();
+        $provider = ServiceProvider::where('user_id', Auth::id())->first();
 
-        $bookings = collect(); // Empty collection if no provider
-
-        if ($provider) {
-            $bookings = Booking::whereHas('activity', function($query) use ($provider) {
-                $query->where('provider_id', $provider->id);
-            })
-            ->with(['activity', 'user'])
-            ->orderBy('created_at', 'desc')
-            ->paginate(10);
+        if (!$provider) {
+            return redirect()->route('dashboard')
+                ->with('error', 'You must be a registered provider to view bookings.');
         }
+
+        $bookings = Booking::with(['activity', 'user'])
+            ->whereHas('activity', fn($q) => $q->where('provider_id', $provider->id))
+            ->latest()
+            ->paginate(10);
 
         return view('provider.bookings.index', compact('bookings', 'provider'));
     }
 
+    /**
+     * Show details of a specific booking.
+     */
     public function show(Booking $booking)
     {
-        $user = Auth::user();
-        $provider = ServiceProvider::where('user_id', $user->id)->first();
+        $this->authorize('view', $booking);
 
-        // Ensure booking belongs to this provider
-        if ($booking->activity->provider_id !== $provider->id) {
-            abort(403);
-        }
+        $provider = ServiceProvider::where('user_id', Auth::id())->first();
 
         return view('provider.bookings.show', compact('booking', 'provider'));
     }
 
+    /**
+     * Update booking status (confirm/cancel/complete).
+     */
     public function update(Request $request, Booking $booking)
     {
-        $user = Auth::user();
-        $provider = ServiceProvider::where('user_id', $user->id)->first();
+        $this->authorize('update', $booking);
 
-        // Ensure booking belongs to this provider
-        if ($booking->activity->provider_id !== $provider->id) {
-            abort(403);
-        }
-
-        $request->validate([
+        $validated = $request->validate([
             'status' => 'required|in:pending,confirmed,cancelled,completed',
         ]);
 
-        $booking->update([
-            'status' => $request->status,
-        ]);
+        $booking->update($validated);
 
-        return redirect()->back()->with('success', 'Booking status updated successfully.');
+        return back()->with('success', 'Booking status updated successfully.');
     }
 }

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Route;
 
 class DashboardController extends Controller
 {
@@ -13,178 +13,334 @@ class DashboardController extends Controller
      */
     public function index(Request $request)
     {
-        $user = auth()->user();
-        $userId = $user->id ?? null;
+        $user = $request->user();
 
-        if (!$userId) {
-            return redirect()->route('login');
+        // Resolve role & provider type
+        $providerData = json_decode($user->provider_data ?? '{}', true);
+        $providerType = $providerData['provider_type'] ?? null;
+        $userRole = $providerType
+            ?? $user->role_id
+            ?? ($user->role->slug ?? 'client');
+
+        // Allow testing override via URL ?dashboard_type=
+        if ($request->filled('dashboard_type')) {
+            return $this->redirectToDashboard($request->get('dashboard_type'), $user);
         }
 
-        $totalBookings = (int) DB::table('bookings')->where('user_id', $userId)->count();
-        $completedBookings = (int) DB::table('bookings')->where('user_id', $userId)->where('status', 'completed')->count();
-        $pendingBookings = (int) DB::table('bookings')->where('user_id', $userId)->where('status', 'pending')->count();
-        $totalSpent = (float) DB::table('bookings')->where('user_id', $userId)->where('status', 'completed')->sum('amount_paid');
+        // Priority routing: providers first
+        if (in_array($userRole, ['provider-professional', 'provider'])) {
+            return $this->redirectToDashboard('professional', $user);
+        }
+        if ($userRole === 'provider-bonding') {
+            return $this->redirectToDashboard('bonding', $user);
+        }
+        if (in_array($userRole, ['super-admin', 'admin'])) {
+            return $this->redirectToDashboard('admin', $user);
+        }
 
-        return view('dashboard', [
-            'totalBookings' => $totalBookings,
-            'completedBookings' => $completedBookings,
-            'pendingBookings' => $pendingBookings,
-            'totalSpent' => number_format($totalSpent, 2),
-            'header' => __('Dashboard'),
-            'message' => __("You're logged in!"),
+        // Default: client dashboard
+        return $this->showBasicDashboard($user);
+    }
+
+    private function redirectToDashboard(string $type, $user)
+    {
+        $routes = [
+            'professional' => 'dashboard.provider-professional',
+            'bonding'      => 'dashboard.provider-bonding',
+            'admin'        => 'dashboard.super-admin',
+            'client'       => null, // handled in showBasicDashboard
+        ];
+
+        $routeName = $routes[$type] ?? null;
+
+        if ($routeName && Route::has($routeName)) {
+            return redirect()->route($routeName);
+        }
+
+        return $this->showBasicDashboard($user);
+    }
+
+    private function showBasicDashboard($user)
+    {
+        // Simple dashboard data
+        $dashboardData = [
+            'user'            => $user,
+            'welcomeMessage'  => 'Welcome to Infanect!',
+            'totalBookings'   => $this->getTotalBookings($user),
+            'upcomingBookings'=> $this->getUpcomingBookings($user),
+            'recentActivities'=> $this->getRecentActivities($user),
+            'quickActions'    => [
+                ['name' => 'Browse Activities', 'url' => route('activities.index'), 'icon' => 'calendar'],
+                ['name' => 'Explore Services', 'url' => route('services.index'), 'icon' => 'users'],
+                ['name' => 'Training Modules', 'url' => route('training.index'), 'icon' => 'graduation-cap'],
+            ]
+        ];
+
+        return view('dashboards.basic', $dashboardData);
+    }
+
+    // -----------------------------
+    //  Dashboard Metrics
+    // -----------------------------
+
+    private function getTotalBookings($user)
+    {
+        try {
+            return DB::table('bookings')->where('user_id', $user->id)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function getUpcomingBookings($user)
+    {
+        try {
+            return DB::table('bookings')
+                ->where('user_id', $user->id)
+                ->where('booking_date', '>=', now())
+                ->limit(3)
+                ->get();
+        } catch (\Throwable $e) {
+            return collect([]);
+        }
+    }
+
+    private function getRecentActivities($user)
+    {
+        // Mock fallback until activity logs are implemented
+        return collect([
+            (object)['name' => 'Family Yoga Session', 'date' => now()->subDays(2)],
+            (object)['name' => 'Parenting Workshop', 'date' => now()->subDays(5)],
+            (object)['name' => 'Child Development Talk', 'date' => now()->subDays(7)],
         ]);
     }
 
-    /**
-     * Display wellness dashboard
-     */
+    private function getActivitiesCount()
+    {
+        try {
+            return DB::table('activities')->where('is_approved', true)->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function getMonthlyBookings($user)
+    {
+        try {
+            return DB::table('bookings')
+                ->where('user_id', $user->id)
+                ->whereMonth('created_at', now()->month)
+                ->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function getCompletedBookings($user)
+    {
+        try {
+            return DB::table('bookings')
+                ->where('user_id', $user->id)
+                ->where('status', 'completed')
+                ->count();
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function getTotalSpending($user)
+    {
+        try {
+            return DB::table('bookings')
+                ->where('user_id', $user->id)
+                ->where('status', 'completed')
+                ->sum('amount_paid') ?? 0;
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function getMonthlySpending($user)
+    {
+        try {
+            return DB::table('bookings')
+                ->where('user_id', $user->id)
+                ->where('status', 'completed')
+                ->whereMonth('created_at', now()->month)
+                ->sum('amount_paid') ?? 0;
+        } catch (\Throwable $e) {
+            return 0;
+        }
+    }
+
+    private function getRecentBookings($user)
+    {
+        try {
+            return DB::table('bookings')
+                ->leftJoin('services', 'bookings.service_id', '=', 'services.id')
+                ->leftJoin('activities', 'bookings.activity_id', '=', 'activities.id')
+                ->where('bookings.user_id', $user->id)
+                ->select(
+                    'bookings.*',
+                    DB::raw('COALESCE(services.name, activities.title, "Service") as service_name')
+                )
+                ->orderByDesc('bookings.created_at')
+                ->limit(10)
+                ->get();
+        } catch (\Throwable $e) {
+            return collect([]);
+        }
+    }
+
+    private function getProviders()
+    {
+        try {
+            return DB::table('providers')
+                ->whereNull('deleted_at')
+                ->limit(6)
+                ->get();
+        } catch (\Throwable $e) {
+            // Fallback: use users with provider roles
+            try {
+                return DB::table('users')
+                    ->whereIn('role_id', ['provider', 'provider-professional', 'provider-bonding'])
+                    ->limit(6)
+                    ->get();
+            } catch (\Throwable $e2) {
+                return collect([]);
+            }
+        }
+    }
+
+    // -----------------------------
+    //  Public APIs (Ajax Endpoints)
+    // -----------------------------
+
     public function wellness()
     {
-        $user = auth()->user();
-
-        // Wellness-related data
         $wellnessStats = [
-            'completed_modules' => 0, // This would come from user progress tracking
-            'current_streak' => 0,
-            'total_activities' => Activity::count(),
-            'favorite_category' => 'Wellness', // This would be calculated
+            'completed_modules' => 0,
+            'current_streak'    => 0,
+            'total_activities'  => $this->getActivitiesCount(),
+            'favorite_category' => 'Wellness',
         ];
 
         return view('dashboard.wellness', compact('wellnessStats'));
     }
 
-    /**
-     * Get weekly engagement data
-     */
     public function weeklyEngagement()
     {
-        $user = auth()->user();
-
-        // Mock data for weekly engagement - replace with actual data
-        $engagementData = [
+        return response()->json([
             'labels' => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            'data' => [12, 19, 3, 5, 2, 3, 9]
-        ];
-
-        return response()->json($engagementData);
+            'data'   => [12, 19, 3, 5, 2, 3, 9], // Mock data
+        ]);
     }
 
-    /**
-     * Get learning progress data
-     */
     public function learningProgress()
     {
-        $user = auth()->user();
-
-        // Mock data for learning progress - replace with actual data
-        $progressData = [
-            'completed' => 15,
+        return response()->json([
+            'completed'   => 15,
             'in_progress' => 8,
-            'total' => 25,
-            'percentage' => 60
-        ];
-
-        return response()->json($progressData);
+            'total'       => 25,
+            'percentage'  => 60,
+        ]);
     }
 
-    /**
-     * Get dashboard stats
-     */
-    public function stats()
+    public function stats(Request $request)
     {
-        $user = auth()->user();
+        $user = $request->user();
 
-        $stats = [
+        return response()->json([
             'bookings' => [
-                'total' => Booking::where('user_id', $user->id)->count(),
-                'this_month' => Booking::where('user_id', $user->id)
-                    ->whereMonth('created_at', now()->month)
-                    ->count(),
-                'completed' => Booking::where('user_id', $user->id)->where('status', 'completed')->count(),
+                'total'      => $this->getTotalBookings($user),
+                'this_month' => $this->getMonthlyBookings($user),
+                'completed'  => $this->getCompletedBookings($user),
             ],
             'spending' => [
-                'total' => Booking::where('user_id', $user->id)->where('status', 'completed')->sum('amount_paid'),
-                'this_month' => Booking::where('user_id', $user->id)
-                    ->where('status', 'completed')
-                    ->whereMonth('created_at', now()->month)
-                    ->sum('amount_paid'),
+                'total'      => $this->getTotalSpending($user),
+                'this_month' => $this->getMonthlySpending($user),
             ]
-        ];
-
-        return response()->json($stats);
+        ]);
     }
 
-    /**
-     * Get tab content dynamically
-     */
     public function tabContent($tab)
     {
         $user = auth()->user();
 
-        switch ($tab) {
-            case 'bookings':
-                $data = Booking::where('user_id', $user->id)
-                    ->with(['service', 'activity'])
-                    ->orderBy('created_at', 'desc')
-                    ->limit(10)
-                    ->get();
-                break;
-
-            case 'activities':
-                $data = Activity::where('is_approved', true)
-                    ->inRandomOrder()
-                    ->limit(6)
-                    ->get();
-                break;
-
-            case 'providers':
-                $data = ServiceProvider::inRandomOrder()
-                    ->limit(6)
-                    ->get();
-                break;
-
-            default:
-                $data = [];
-        }
+        $data = match ($tab) {
+            'bookings'  => $this->getRecentBookings($user),
+            'activities'=> $this->getRecentActivities($user),
+            'providers' => $this->getProviders(),
+            default     => [],
+        };
 
         return response()->json($data);
     }
 
-    /**
-     * Search functionality
-     */
     public function search(Request $request)
     {
-        $query = $request->get('q', '');
+        $query = trim($request->get('q', ''));
 
-        if (empty($query)) {
+        if ($query === '') {
             return response()->json([]);
         }
 
-        // Search activities
-        $activities = Activity::where('is_approved', true)
-            ->where('title', 'LIKE', "%{$query}%")
-            ->orWhere('description', 'LIKE', "%{$query}%")
-            ->limit(5)
-            ->get();
-
-        // Search providers
-        $providers = ServiceProvider::where('name', 'LIKE', "%{$query}%")
-            ->orWhere('bio', 'LIKE', "%{$query}%")
-            ->limit(5)
-            ->get();
-
-        // Search services
-        $services = Service::where('is_active', true)
-            ->where('name', 'LIKE', "%{$query}%")
-            ->orWhere('description', 'LIKE', "%{$query}%")
-            ->limit(5)
-            ->get();
-
         return response()->json([
-            'activities' => $activities,
-            'providers' => $providers,
-            'services' => $services
+            'activities' => $this->searchActivities($query),
+            'providers'  => $this->searchProviders($query),
+            'services'   => $this->searchServices($query),
         ]);
+    }
+
+    // -----------------------------
+    //  Search Helpers
+    // -----------------------------
+
+    private function searchActivities($query)
+    {
+        try {
+            return DB::table('activities')
+                ->where('is_approved', true)
+                ->where(function ($q) use ($query) {
+                    $q->where('title', 'like', "%{$query}%")
+                      ->orWhere('description', 'like', "%{$query}%");
+                })
+                ->limit(5)
+                ->get();
+        } catch (\Throwable $e) {
+            return collect([]);
+        }
+    }
+
+    private function searchProviders($query)
+    {
+        try {
+            return DB::table('providers')
+                ->whereNull('deleted_at')
+                ->where(function ($q) use ($query) {
+                    $q->where('name', 'like', "%{$query}%")
+                      ->orWhere('bio', 'like', "%{$query}%");
+                })
+                ->limit(5)
+                ->get();
+        } catch (\Throwable $e) {
+            return collect([]);
+        }
+    }
+
+    private function searchServices($query)
+    {
+        try {
+            return DB::table('services')
+                ->where('is_active', true)
+                ->where(function ($q) use ($query) {
+                    $q->where('name', 'like', "%{$query}%")
+                      ->orWhere('description', 'like', "%{$query}%");
+                })
+                ->limit(5)
+                ->get();
+        } catch (\Throwable $e) {
+            return collect([]);
+        }
     }
 }

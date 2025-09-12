@@ -3,17 +3,12 @@
 namespace App\Providers;
 
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Pagination\Paginator;
-use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
-use App\Models\User;
-use App\Models\Provider;
-use App\Models\Service;
-use App\Models\Booking;
-use App\Models\Review;
-use BackedEnum;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -22,12 +17,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        // Bind common short controller names to their fully-qualified classes to support legacy route strings
-        $this->app->bind('DashboardController', \App\Http\Controllers\DashboardController::class);
-        $this->app->bind('ProviderDashboardController', \App\Http\Controllers\Provider\DashboardController::class);
-        $this->app->bind('PaymentController', \App\Http\Controllers\PaymentController::class);
-        $this->app->bind('AiChatController', \App\Http\Controllers\AiChatController::class);
-        $this->app->bind('TrainingModuleController', \App\Http\Controllers\TrainingModuleController::class);
+        // Register services for metric calculations
+        $this->app->singleton(\App\Services\DashboardMetricsService::class);
+        $this->app->singleton(\App\Services\EngagementService::class);
     }
 
     /**
@@ -35,130 +27,255 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Fix "Specified key was too long" for older MySQL versions
-        Schema::defaultStringLength(191);
-
-        // Use Bootstrap pagination views (if using Bootstrap frontend)
-        Paginator::useBootstrap();
-
         // Force HTTPS in production
         if ($this->app->environment('production')) {
             URL::forceScheme('https');
         }
 
-        // Share global stats & settings with all views
-        View::composer('*', function ($view) {
-            try {
-                $globalStats = cache()->remember('global_stats', 300, function () {
-                    return [
-                        'users_count'     => User::count(),
-                        'providers_count' => Provider::count(),
-                        'services_count'  => Service::count(),
-                        'bookings_count'  => Booking::count(),
-                        'reviews_count'   => Review::count(),
-                    ];
-                });
+        // Fix MySQL string length issue for older versions
+        Schema::defaultStringLength(191);
 
-                $view->with('globalStats', $globalStats);
-            } catch (\Throwable $e) {
-                // In case DB is not ready during migrations/seeding
-                $view->with('globalStats', [
-                    'users_count'     => 0,
-                    'providers_count' => 0,
-                    'services_count'  => 0,
-                    'bookings_count'  => 0,
-                    'reviews_count'   => 0,
-                ]);
+        // Register custom Blade directives
+        $this->registerBladeDirectives();
+
+        // Register custom Blade component paths
+        Blade::componentNamespace('App\\View\\Components', 'infanect');
+
+        // After Laravel 12, clear compiled views in development
+        if ($this->app->environment('local')) {
+            if (file_exists(storage_path('framework/views'))) {
+                array_map('unlink', glob(storage_path('framework/views/*')));
             }
-        });
-
-        Blade::directive('stringify', function ($expression) {
-            return "<?php echo is_array($expression) ? implode(' ', $expression) : $expression; ?>";
-        });
-
-        Blade::directive('safe', function ($expression) {
-            return "<?php echo is_array($expression) ? e(implode(' ', $expression)) : e($expression ?? ''); ?>";
-        });
-
-        // Provide class_alias fallbacks for unqualified controller names
-        if (!class_exists('DashboardController') && class_exists(\App\Http\Controllers\DashboardController::class)) {
-            class_alias(\App\Http\Controllers\DashboardController::class, 'DashboardController');
-        }
-        if (!class_exists('ProviderDashboardController') && class_exists(\App\Http\Controllers\Provider\DashboardController::class)) {
-            class_alias(\App\Http\Controllers\Provider\DashboardController::class, 'ProviderDashboardController');
-        }
-        if (!class_exists('AiChatController') && class_exists(\App\Http\Controllers\AiChatController::class)) {
-            class_alias(\App\Http\Controllers\AiChatController::class, 'AiChatController');
-        }
-        if (!class_exists('TrainingModuleController') && class_exists(\App\Http\Controllers\TrainingModuleController::class)) {
-            class_alias(\App\Http\Controllers\TrainingModuleController::class, 'TrainingModuleController');
         }
 
-        // Global composer: sanitize arrays and simple values only. Skip objects (exceptions, models) to avoid breaking views that expect objects.
-        View::composer('*', function ($view) {
-            $data = $view->getData();
-            $sanitized = [];
-
-            foreach ($data as $key => $value) {
-                // Skip sanitization for objects so exception and model objects remain intact for views
-                if (is_object($value)) {
-                    $sanitized[$key] = $value;
-                    continue;
-                }
-
-                // Only sanitize arrays and scalar/primitive types
-                $sanitized[$key] = $this->sanitizeValue($value);
-            }
-
-            if (!empty($sanitized)) {
-                $view->with($sanitized);
-            }
-        });
-
-        // Prevent legacy view route(...) calls from throwing by returning a safe '#'
-        try {
-            $url = $this->app['url'];
-            $resolver = function ($name, $parameters, $absolute) {
-                return '#';
-            };
-
-            $ref = new \ReflectionClass($url);
-            if ($ref->hasProperty('missingNamedRouteResolver')) {
-                $prop = $ref->getProperty('missingNamedRouteResolver');
-                $prop->setAccessible(true);
-                $prop->setValue($url, $resolver);
-            } else {
-                // best-effort fallback
-                $url->missingNamedRouteResolver = $resolver;
-            }
-        } catch (\Throwable $e) {
-            // ignore failures
-        }
+        // Share global stats with specific views
+        $this->shareGlobalStats();
     }
 
     /**
-     * Convert value to a safe scalar/string for Blade.
-     * Only handles scalars and arrays; objects are returned unchanged.
+     * Register custom Blade directives
      */
-    protected function sanitizeValue(mixed $value): mixed
+    private function registerBladeDirectives(): void
     {
-        if (is_null($value)) return '';
+        // Safely convert any value to string
+        Blade::directive('stringify', function ($expression) {
+            return "<?php echo e(is_string($expression) ? $expression : (is_null($expression) ? '' : (method_exists($expression, '__toString') ? (string)$expression : json_encode($expression)))); ?>";
+        });
 
-        if ($value instanceof BackedEnum) return (string) $value->value;
+        // Safe output that handles null/undefined/objects
+        Blade::directive('safe', function ($expression) {
+            return "<?php echo e($expression ?? ''); ?>";
+        });
+    }
 
-        if (is_string($value) || is_numeric($value)) return $value;
+    /**
+     * Share global stats with views
+     */
+    private function shareGlobalStats(): void
+    {
+        // Only compose stats for layout and dashboard views to improve performance
+        View::composer(['layouts.*', 'dashboards.*', 'admin.*', 'components.widgets.*'], function ($view) {
+            // Cache stats for 5 minutes to reduce DB load
+            $globalStats = Cache::remember('global_stats', 5 * 60, function () {
+                // Base counts - using try/catch for schema resilience during migrations
+                $stats = $this->getBaseCounts();
 
-        if (is_bool($value)) return $value ? '1' : '0';
+                // Add engagement data
+                $stats = array_merge($stats, $this->getEngagementCounts());
 
-        if (is_array($value)) {
-            return implode(' ', array_map(fn($v) => $this->sanitizeValue($v), $value));
+                // Activity metrics
+                $stats = array_merge($stats, $this->getActivityMetrics());
+
+                // Add active engagements for sidebars/widgets
+                $stats['active_engagements'] = $this->getActiveEngagements();
+
+                // Add recent mood submissions
+                $stats['recent_mood_submissions'] = $this->getRecentMoodSubmissions();
+
+                return $stats;
+            });
+
+            $view->with('global_stats', $globalStats);
+        });
+    }
+
+    /**
+     * Get base entity counts with error handling
+     */
+    private function getBaseCounts(): array
+    {
+        $stats = [
+            'users_count' => 0,
+            'providers_count' => 0,
+            'services_count' => 0,
+            'bookings_count' => 0,
+            'reviews_count' => 0,
+        ];
+
+        try {
+            if (Schema::hasTable('users')) {
+                $stats['users_count'] = DB::table('users')->count();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist during migrations
         }
 
-        // For objects, return as-is to avoid breaking views that expect specific object types
-        if (is_object($value)) {
-            return $value;
+        try {
+            if (Schema::hasTable('providers')) {
+                $stats['providers_count'] = DB::table('providers')
+                    ->whereNull('deleted_at')
+                    ->count();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist during migrations
         }
 
-        return (string) $value;
+        try {
+            if (Schema::hasTable('services')) {
+                $stats['services_count'] = DB::table('services')->count();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist during migrations
+        }
+
+        try {
+            if (Schema::hasTable('bookings')) {
+                $stats['bookings_count'] = DB::table('bookings')
+                    ->whereNull('deleted_at')
+                    ->count();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist during migrations
+        }
+
+        try {
+            if (Schema::hasTable('reviews')) {
+                $stats['reviews_count'] = DB::table('reviews')->count();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist during migrations
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Get engagement-related counts
+     */
+    private function getEngagementCounts(): array
+    {
+        $stats = [
+            'engagements_count' => 0,
+            'provider_engagements_count' => 0,
+            'active_engagements_count' => 0,
+        ];
+
+        try {
+            if (Schema::hasTable('engagements')) {
+                $stats['engagements_count'] = DB::table('engagements')->count();
+
+                $stats['provider_engagements_count'] = DB::table('engagements')
+                    ->whereNotNull('provider_id')
+                    ->count();
+
+                $stats['active_engagements_count'] = DB::table('engagements')
+                    ->where('status', 'active')
+                    ->count();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist yet
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Get activity metrics
+     */
+    private function getActivityMetrics(): array
+    {
+        $stats = [
+            'total_activity_participants' => 0,
+            'avg_attendance_rate' => 0,
+        ];
+
+        try {
+            if (Schema::hasTable('activities') && Schema::hasTable('bookings')) {
+                // Total participants in activities
+                $stats['total_activity_participants'] = DB::table('bookings')
+                    ->whereNotNull('activity_id')
+                    ->count();
+
+                // Calculate attendance rate
+                $totalBookings = DB::table('bookings')->count() ?: 1; // Avoid division by zero
+                $attendedBookings = DB::table('bookings')
+                    ->where('status', 'completed')
+                    ->count();
+
+                $stats['avg_attendance_rate'] = round(($attendedBookings / $totalBookings) * 100, 1);
+            }
+        } catch (\Exception $e) {
+            // Tables might not exist yet
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Get active engagements for sidebar widgets
+     */
+    private function getActiveEngagements(): array
+    {
+        $engagements = [];
+
+        try {
+            if (Schema::hasTable('engagements')) {
+                $engagements = DB::table('engagements')
+                    ->select([
+                        'id', 'title', 'description', 'start_date', 'end_date',
+                        'status', 'provider_id', 'type', 'image_url'
+                    ])
+                    ->where('status', 'active')
+                    ->whereDate('end_date', '>=', now())
+                    ->orderBy('start_date')
+                    ->limit(5)
+                    ->get()
+                    ->toArray();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist yet
+        }
+
+        return $engagements;
+    }
+
+    /**
+     * Get recent mood submissions for insights
+     */
+    private function getRecentMoodSubmissions(): array
+    {
+        $submissions = [];
+
+        try {
+            if (Schema::hasTable('mood_submissions')) {
+                $submissions = DB::table('mood_submissions')
+                    ->join('users', 'mood_submissions.user_id', '=', 'users.id')
+                    ->select([
+                        'mood_submissions.id',
+                        'mood_submissions.mood',
+                        'mood_submissions.mood_score',
+                        'mood_submissions.created_at',
+                        'users.name as user_name'
+                    ])
+                    ->orderBy('mood_submissions.created_at', 'desc')
+                    ->limit(10)
+                    ->get()
+                    ->toArray();
+            }
+        } catch (\Exception $e) {
+            // Table might not exist yet
+        }
+
+        return $submissions;
     }
 }

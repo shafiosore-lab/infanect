@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Provider;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Service;
+use Illuminate\Support\Facades\Auth;
 
 class ServiceController extends Controller
 {
@@ -21,7 +23,11 @@ class ServiceController extends Controller
      */
     public function index()
     {
-        return view('provider.services.index');
+        $services = Service::where('user_id', Auth::id())
+                           ->latest()
+                           ->paginate(10);
+
+        return view('provider.services.index', compact('services'));
     }
 
     /**
@@ -37,12 +43,16 @@ class ServiceController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
-        // Store logic here (e.g., Service::create([...]))
+        $validated['user_id'] = Auth::id();
+        $validated['is_active'] = true;
+
+        Service::create($validated);
+
         return redirect()->route('provider.services.index')
                          ->with('success', 'Service created successfully.');
     }
@@ -50,22 +60,27 @@ class ServiceController extends Controller
     /**
      * Show the form for editing a service.
      */
-    public function edit($id)
+    public function edit(Service $service)
     {
-        return view('provider.services.edit', compact('id'));
+        $this->authorizeOwner($service);
+
+        return view('provider.services.edit', compact('service'));
     }
 
     /**
      * Update a service.
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, Service $service)
     {
-        $request->validate([
-            'name' => 'required|string|max:255',
+        $this->authorizeOwner($service);
+
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
             'description' => 'nullable|string',
         ]);
 
-        // Update logic here
+        $service->update($validated);
+
         return redirect()->route('provider.services.index')
                          ->with('success', 'Service updated successfully.');
     }
@@ -73,10 +88,23 @@ class ServiceController extends Controller
     /**
      * Delete a service.
      */
-    public function destroy($id)
+    public function destroy(Service $service)
     {
-        // Delete logic here
+        $this->authorizeOwner($service);
+
+        $service->delete();
+
         return redirect()->route('provider.services.index')
                          ->with('success', 'Service deleted successfully.');
+    }
+
+    /**
+     * Ensure the authenticated provider owns the service.
+     */
+    private function authorizeOwner(Service $service)
+    {
+        if ($service->user_id !== Auth::id()) {
+            abort(403, 'Unauthorized action.');
+        }
     }
 }

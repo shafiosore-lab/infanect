@@ -1,162 +1,215 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <title>{{ config('app.name', 'Infanect') }}</title>
 
-    <!-- Compiled CSS -->
+    <!-- CSRF Token -->
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Custom CSS -->
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
-    <!-- Compiled JS -->
-    <script src="{{ asset('js/app.js') }}" defer></script>
-    <!-- Chart.js CDN for dashboards -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
 
-    <!-- Optionally include Laravel Echo + Pusher for realtime (if environment configured) -->
-    @if(env('PUSHER_APP_KEY'))
-        <script src="https://js.pusher.com/7.2/pusher.min.js" defer></script>
-        <script src="https://cdn.jsdelivr.net/npm/laravel-echo/dist/echo.iife.js" defer></script>
-        <script defer>
-            document.addEventListener('DOMContentLoaded', function () {
-                try {
-                    window.Pusher = Pusher;
-                    window.Echo = new Echo({
-                        broadcaster: 'pusher',
-                        key: '{{ env('PUSHER_APP_KEY') }}',
-                        cluster: '{{ env('PUSHER_APP_CLUSTER') }}',
-                        forceTLS: {{ env('PUSHER_SCHEME', 'https') === 'https' ? 'true' : 'false' }},
-                    });
-                } catch (e) {
-                    console.warn('Echo init failed', e);
-                }
-            });
-        </script>
-    @endif
+    <!-- Custom Styles -->
+    <style>
+        :root {
+            --primary: #ea1c4d;
+            --accent: #65c16e;
+            --warning: #fbc761;
+            --darkgray: #333333;
+        }
+        body {
+            display: flex;
+            min-height: 100vh;
+        }
+        .app-container {
+            display: flex;
+            flex: 1;
+            width: 100%;
+        }
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex: 1;
+            padding: 1.5rem;
+        }
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .app-container { flex-direction: column; }
+        }
+    </style>
 
-    <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
-    {{-- Flatpickr CSS --}}
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    {{-- Optionally theme --}}
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/material_blue.css">
-
-    <!-- Scripts -->
-    <!-- @vite(['resources/css/app.css', 'resources/js/app.js']) -->
-     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
-    <!-- Alpine.js for reactive UI (required for sidebar collapse, x-show, x-cloak) -->
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- Chart.js for dashboards -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    @stack('styles')
 </head>
-<body class="bg-gray-50 text-gray-900 antialiased">
+<body class="bg-light">
 
-    @include('components.navbar')
+    @php
+        // Helper function to check if route exists
+        if (!function_exists('route_exists')) {
+            function route_exists($name) {
+                return app('router')->has($name);
+            }
+        }
+    @endphp
 
-    <div id="app" x-data="{ sidebarCollapsed: false }" class="min-h-screen">
+    <div class="app-container">
         <!-- Sidebar -->
-        <div class="hidden md:flex md:flex-col md:fixed md:inset-y-0" :class="sidebarCollapsed ? 'md:w-20' : 'md:w-64'">
-            <div class="flex-1 flex flex-col min-h-0 bg-gray-800">
-                <div class="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
+        @if(isset($user))
+            @php
+                // Determine user role if not explicitly set
+                $userRole = $role ?? '';
 
-                    @if(auth()->check() && (method_exists(auth()->user(), 'hasRole') ? auth()->user()->hasRole('admin') : (auth()->user()->role ?? '') === 'admin' || auth()->user()->role === 'manager'))
-                        @include('partials.sidebar')
-                    @elseif(auth()->check() && (method_exists(auth()->user(), 'hasRole') ? auth()->user()->hasRole('provider') : (auth()->user()->role ?? '') === 'provider'))
-                        @include('partials.provider-sidebar')
-                    @else
-                        @include('partials.user-sidebar')
-                    @endif
+                if (!$userRole && $user) {
+                    // Check for method-based roles first
+                    if (method_exists($user, 'hasRole')) {
+                        foreach (['super-admin', 'admin', 'provider-professional', 'provider-bonding'] as $r) {
+                            if ($user->hasRole($r)) {
+                                $userRole = $r;
+                                break;
+                            }
+                        }
+                    } else {
+                        // Otherwise try to get from role_id or role property
+                        $roleMap = [
+                            7 => 'admin',
+                            8 => 'super-admin',
+                            4 => 'provider-professional',
+                            5 => 'provider-bonding',
+                            3 => 'provider',
+                        ];
+                        $userRole = $roleMap[$user->role_id ?? 0] ?? ($user->role ?? 'client');
+                    }
+                }
+            @endphp
 
+            <x-layouts.partials.sidebar
+                :user="$user"
+                :role="$userRole"
+                :totalBookings="$totalBookings ?? 0"
+                :upcomingBookings="$upcomingBookings ?? collect([])"
+                :clients="$clients ?? collect([])"
+                :recentActivities="$recentActivities ?? collect([])"
+                :families="$families ?? collect([])"
+                :completedModules="$completedModules ?? collect([])"
+                :notificationCount="$notificationCount ?? 0"
+                :messageCount="$messageCount ?? 0"
+            />
+        @endif
+
+        <div class="content-wrapper">
+            <!-- Header / Navbar -->
+            <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+                <div class="container-fluid">
+                    <a class="navbar-brand fw-bold text-primary" href="{{ route_exists('dashboard') ? route('dashboard') : '#' }}">
+                        {{ config('app.name', 'Infanect') }}
+                    </a>
+
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+
+                    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+                        <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+                            @guest
+                                @if(route_exists('login'))
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('login') }}">Login</a>
+                                </li>
+                                @endif
+                                @if(route_exists('register'))
+                                <li class="nav-item">
+                                    <a class="nav-link" href="{{ route('register') }}">Register</a>
+                                </li>
+                                @endif
+                            @else
+                                <!-- Notifications Dropdown -->
+                                @if(isset($notificationCount) && $notificationCount > 0)
+                                    <li class="nav-item dropdown">
+                                        <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown">
+                                            <i class="fas fa-bell"></i>
+                                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                                                {{ $notificationCount }}
+                                            </span>
+                                        </a>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            @if(route_exists('notifications.index'))
+                                                <li><a class="dropdown-item" href="{{ route('notifications.index') }}">View All</a></li>
+                                            @endif
+                                        </ul>
+                                    </li>
+                                @endif
+
+                                <!-- User Dropdown -->
+                                <li class="nav-item dropdown">
+                                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                        {{ $user->name }}
+                                    </a>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        @if(route_exists('profile.edit'))
+                                            <li><a class="dropdown-item" href="{{ route('profile.edit') }}">
+                                                <i class="fas fa-user-circle me-2"></i>Profile
+                                            </a></li>
+                                        @endif
+
+                                        {{-- Changed from settings.index to profile.settings if available, otherwise removed --}}
+                                        @if(route_exists('profile.settings'))
+                                            <li><a class="dropdown-item" href="{{ route('profile.settings') }}">
+                                                <i class="fas fa-cog me-2"></i>Settings
+                                            </a></li>
+                                        @endif
+
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            @if(route_exists('logout'))
+                                                <form method="POST" action="{{ route('logout') }}">
+                                                    @csrf
+                                                    <button type="submit" class="dropdown-item">
+                                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <a href="#" class="dropdown-item">
+                                                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                                </a>
+                                            @endif
+                                        </li>
+                                    </ul>
+                                </li>
+                            @endguest
+                        </ul>
+                    </div>
                 </div>
+            </nav>
 
+            <!-- Main Content -->
+            <div class="main-content">
+                @yield('content')
             </div>
-        </div>
 
-        <!-- Mobile sidebar -->
-        <div x-data="{ sidebarOpen: false }" class="md:hidden">
-            <div x-show="sidebarOpen" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 flex z-40">
-                <div x-show="sidebarOpen" x-transition:enter="transition-opacity ease-linear duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-linear duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0" x-description="Background overlay, show/hide based on slide-over state." aria-hidden="true">
-                    <div class="absolute inset-0 bg-gray-600 opacity-75"></div>
-                </div>
-                <div x-show="sidebarOpen" x-transition:enter="transition ease-in-out duration-300 transform" x-transition:enter-start="-translate-x-full" x-transition:enter-end="translate-x-0" x-transition:leave="transition ease-in-out duration-300 transform" x-transition:leave-start="translate-x-0" x-transition:leave-end="-translate-x-full" class="relative flex-1 flex flex-col max-w-xs w-full bg-gray-800">
-                    <div class="absolute top-0 right-0 -mr-12 pt-2">
-                        <button x-click="sidebarOpen = false" class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
-                            <span class="sr-only">Close sidebar</span>
-                            <svg class="h-6 w-6 text-white" x-description="Heroicon name: x" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
-                        <div class="flex-shrink-0 flex items-center px-4">
-                            <x-application-logo class="h-8 w-auto text-white" />
-                            <span class="ml-2 text-white text-lg font-semibold">{{ config('app.name', 'Laravel') }}</span>
-                        </div>
-                        @include('partials.sidebar')
-                    </div>
-                    <div class="flex-shrink-0 flex border-t border-gray-700 p-4">
-                        <div class="flex items-center w-full">
-                            <div class="flex-shrink-0">
-                                <div class="h-8 w-8 rounded-full bg-gray-600 flex items-center justify-center">
-                                    <span class="text-white text-sm font-medium">{{ strtoupper(substr(Auth::user()->name, 0, 2)) }}</span>
-                                </div>
-                            </div>
-                            <div class="ml-3 flex-1 min-w-0">
-                                <p class="text-sm font-medium text-white truncate">{{ Auth::user()->name }}</p>
-                                <p class="text-xs text-gray-400 truncate">{{ Auth::user()->email }}</p>
-                            </div>
-                            <!-- logout button moved to sidebar partial -->
-                        </div>
-                    </div>
-                </div>
-                <div class="flex-shrink-0 w-14" aria-hidden="true"></div>
-            </div>
-        </div>
-
-        <!-- Main content -->
-        <div class="md:pl-64 flex flex-col flex-1">
-            <!-- Top navigation -->
-            <div class="sticky top-0 z-10 md:hidden pl-1 pt-1 sm:pl-3 sm:pt-3 bg-gray-100">
-                <button x-data="{ sidebarOpen: false }" @click="sidebarOpen = true" class="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
-                    <span class="sr-only">Open sidebar</span>
-                    <svg class="h-6 w-6" x-description="Heroicon name: menu" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
-                    </svg>
-                </button>
-            </div>
-
-
-
-
-            <main class="flex-1">
-                <!-- Page Heading -->
-
-
-                <!-- Page Content -->
-                <div class="py-6">
-                    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        @yield('content')
-                    </div>
-                </div>
-            </main>
+            <!-- Footer -->
+            <footer class="bg-white text-center py-3 shadow-sm">
+                &copy; {{ date('Y') }} {{ config('app.name', 'Infanect') }}. All rights reserved.
+            </footer>
         </div>
     </div>
 
-    @include('components.footer')
+    <!-- Bootstrap 5 JS & Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Flatpickr JS and timezone helper -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script>
-        window.APP = window.APP || {};
-        try {
-            window.APP.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-        } catch (e) {
-            window.APP.timezone = 'UTC';
-        }
-    </script>
+    <!-- Optional: Custom JS -->
+    <script src="{{ asset('js/app.js') }}"></script>
+
+    @stack('scripts')
 </body>
 </html>

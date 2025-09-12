@@ -15,6 +15,7 @@
     <div class="accordion" id="sidebarAccordion">
     <nav class="sidebar-nav flex-grow-1 px-3 py-4 overflow-auto" data-bs-spy="scroll">
 
+        @auth
         <!-- Dashboard -->
         <a href="{{ route('dashboard') }}"
            class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
@@ -22,7 +23,7 @@
             <span>Dashboard Overview</span>
         </a>
 
-        @if(auth()->user()->isSuperAdmin())
+        @if(auth()->user() && method_exists(auth()->user(), 'isSuperAdmin') && auth()->user()->isSuperAdmin())
 
         <!-- ACTIVITIES & MODULES -->
         <div class="accordion-item border-0 bg-transparent">
@@ -203,7 +204,7 @@
             </div>
         </div>
 
-        @elseif(auth()->user()->isServiceProvider())
+        @elseif(auth()->user() && method_exists(auth()->user(), 'isServiceProvider') && auth()->user()->isServiceProvider())
             <!-- Service Provider Menu -->
             <a href="{{ route('services.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
                 <i class="fas fa-tools"></i>
@@ -218,7 +219,7 @@
                 <span>Profile</span>
             </a>
 
-        @elseif(auth()->user()->isActivityProvider())
+        @elseif(auth()->user() && method_exists(auth()->user(), 'isActivityProvider') && auth()->user()->isActivityProvider())
             <!-- Activity Provider Menu -->
             <a href="{{ route('activities.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
                 <i class="fas fa-bullseye"></i>
@@ -233,7 +234,7 @@
                 <span>Profile</span>
             </a>
 
-        @elseif(auth()->user()->isClient() || auth()->user()->isUser())
+        @elseif(auth()->user() && ((method_exists(auth()->user(), 'isClient') && auth()->user()->isClient()) || (method_exists(auth()->user(), 'isUser') && auth()->user()->isUser())))
             <!-- Client / User Menu -->
             <a href="{{ route('user.modules.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
                 <i class="fas fa-book"></i>
@@ -249,9 +250,12 @@
             </a>
         @endif
 
+        @endauth
+
     </nav>
     </div>
 
+    @auth
     <!-- User Profile Section -->
     <div class="user-profile px-3 py-3 border-top border-secondary mt-auto">
         <div class="d-flex align-items-center gap-3">
@@ -259,8 +263,20 @@
                 <i class="fas fa-user text-white"></i>
             </div>
             <div class="flex-grow-1">
-                <div class="fw-semibold text-white small">{{ auth()->user()->name }}</div>
-                <div class="text-muted small">{{ auth()->user()->role->name ?? 'User' }}</div>
+                <div class="fw-semibold text-white small">
+                    @if(auth()->user())
+                        {{ auth()->user()->name ?? 'User' }}
+                    @else
+                        User
+                    @endif
+                </div>
+                <div class="text-muted small">
+                    @if(auth()->user() && auth()->user()->role)
+                        {{ auth()->user()->role->name ?? 'User' }}
+                    @else
+                        User
+                    @endif
+                </div>
             </div>
             <a href="{{ route('logout') }}" class="btn btn-sm btn-outline-light" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
                 <i class="fas fa-sign-out-alt"></i>
@@ -270,6 +286,18 @@
             </form>
         </div>
     </div>
+    @endauth
+
+    @guest
+    <!-- Guest Section -->
+    <div class="user-profile px-3 py-3 border-top border-secondary mt-auto">
+        <div class="text-center">
+            <a href="{{ route('login') }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-sign-in-alt me-2"></i>Login
+            </a>
+        </div>
+    </div>
+    @endguest
 </div>
 
 <style>

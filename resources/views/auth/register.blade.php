@@ -18,7 +18,7 @@
         <form method="POST" action="{{ route('register') }}" class="needs-validation" novalidate>
             @csrf
 
-            <!-- Name -->
+            <!-- Full Name -->
             <div class="mb-3">
                 <label for="name" class="form-label fw-semibold">Full Name</label>
                 <input id="name" type="text" name="name" value="{{ old('name') }}"
@@ -67,27 +67,36 @@
                 <label for="role_id" class="form-label fw-semibold">Account Type</label>
                 <select id="role_id" name="role_id" class="form-select @error('role_id') is-invalid @enderror" required>
                     <option value="">Choose your account type...</option>
-                    @foreach($roles as $role)
-                        @php
-                            $slug = $role->slug ?? strtolower(str_replace(' ', '-', $role->name ?? ($role->title ?? '')));
-                            $selected = old('role_id') === $slug ? 'selected' : '';
-                        @endphp
-                        @if(in_array($slug, ['employee','client']))
-                            <option value="{{ $slug }}" {{ $selected }}>👤 Parent / Client — Book & pay for activities</option>
-                        @elseif($slug === 'provider')
-                            <option value="{{ $slug }}" {{ $selected }}>🏢 Provider Admin — Manage activities & services</option>
-                        @elseif($slug === 'provider-professional')
-                            <option value="{{ $slug }}" {{ $selected }}>🩺 Provider (Professional) — Offer specialised services</option>
-                        @elseif($slug === 'provider-bonding')
-                            <option value="{{ $slug }}" {{ $selected }}>🤝 Provider (Bonding) — Community & family bonding services</option>
-                        @elseif($slug === 'admin' || $slug === 'super-admin')
-                            <option value="{{ $slug }}" {{ $selected }}>👑 Super Admin — Full system control</option>
-                        @elseif($slug === 'manager')
-                            <option value="{{ $slug }}" {{ $selected }}>📊 Manager — Limited admin access</option>
-                        @else
-                            <option value="{{ $slug }}" {{ $selected }}>{{ $role->name ?? $role->title ?? ($role['name'] ?? 'Role') }}</option>
-                        @endif
-                    @endforeach
+                    @if(isset($roles) && $roles->isNotEmpty())
+                        @foreach($roles as $role)
+                            @php
+                                $roleSlug = $role->slug ?? strtolower(str_replace(' ', '-', $role->name ?? ''));
+                                $roleName = $role->name ?? 'Unknown Role';
+                                $isSelected = old('role_id') == $roleSlug ? 'selected' : '';
+
+                                $roleConfig = match($roleSlug) {
+                                    'client' => ['icon' => '👤', 'title' => 'Client / Parent', 'desc' => 'Book services and activities for your family'],
+                                    'employee' => ['icon' => '👥', 'title' => 'Employee', 'desc' => 'Staff member with basic access'],
+                                    'provider' => ['icon' => '🏢', 'title' => 'General Provider', 'desc' => 'Offer general family services'],
+                                    'provider-professional' => ['icon' => '🩺', 'title' => 'Professional Provider', 'desc' => 'Healthcare, therapy, and medical services'],
+                                    'provider-bonding' => ['icon' => '🤝', 'title' => 'Bonding Provider', 'desc' => 'Community events and family bonding activities'],
+                                    'manager' => ['icon' => '📊', 'title' => 'Manager', 'desc' => 'Team management with limited admin access'],
+                                    'admin' => ['icon' => '⚙️', 'title' => 'Administrator', 'desc' => 'System administration and user management'],
+                                    'super-admin' => ['icon' => '👑', 'title' => 'Super Administrator', 'desc' => 'Full system control and configuration'],
+                                    default => ['icon' => '🔹', 'title' => $roleName, 'desc' => 'User role']
+                                };
+                            @endphp
+
+                            <option value="{{ $roleSlug }}" {{ $isSelected }}>
+                                {{ $roleConfig['icon'] }} {{ $roleConfig['title'] }}
+                            </option>
+                        @endforeach
+                    @else
+                        <option value="client">👤 Client / Parent</option>
+                        <option value="provider-professional">🩺 Professional Provider</option>
+                        <option value="provider-bonding">🤝 Bonding Provider</option>
+                        <option value="admin">⚙️ Administrator</option>
+                    @endif
                 </select>
                 @error('role_id')
                     <div class="invalid-feedback">{{ $message }}</div>
@@ -132,18 +141,4 @@
         </form>
     </div>
 </div>
-
-@php
-// Ensure $roles is defined and is a collection of simple objects
-if (!isset($roles) || (is_array($roles) && count($roles) === 0) || (is_object($roles) &&
-method_exists($roles,'count') && $roles->count() === 0)) {
-$roles = collect([
-(object)['id' => 1, 'slug' => 'employee', 'name' => 'Regular User'],
-(object)['id' => 2, 'slug' => 'provider', 'name' => 'Provider Admin'],
-(object)['id' => 3, 'slug' => 'admin', 'name' => 'Super Admin'],
-]);
-} elseif (is_array($roles)) {
-$roles = collect($roles);
-}
-@endphp
 @endsection

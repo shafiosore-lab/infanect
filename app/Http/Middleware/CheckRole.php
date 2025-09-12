@@ -18,28 +18,27 @@ class CheckRole
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        if (!auth()->check()) {
+        $user = $request->user();
+
+        if (!$user) {
             return redirect()->route('login');
         }
 
-        $user = auth()->user();
+        // For development/testing, allow admin users to access any dashboard
+        $userRole = $user->role_id ?? ($user->role->slug ?? 'client');
 
-        if (!$user->is_active) {
-            auth()->logout();
-            return redirect()->route('login')->with('error', 'Your account is inactive.');
+        if (in_array($userRole, ['super-admin', 'admin'])) {
+            return $next($request);
         }
 
-        // Map legacy role names to new ones for backward compatibility
-        $roleMappings = [
-            'admin'    => 'super-admin',
-            'manager'  => 'super-admin',
-            'provider' => 'service-provider',
-            'employee' => 'staff', // Example additional mapping
-        ];
+        // Check if user has any of the required roles
+        if (empty($roles) || in_array($userRole, $roles)) {
+            return $next($request);
+        }
 
-        // Map requested roles
-        $mappedRoles = array_map(fn($role) => $roleMappings[$role] ?? $role, $roles);
-
+        // If user doesn't have required role, redirect with a message
+        return redirect()->route('dashboard')->with('warning', 'You don\'t have permission to access that area. Redirected to your dashboard.');
+    }
         // If user has multiple roles, check intersection
         $userRoles = is_array($user->role) ? $user->role : [$user->role->slug];
 
@@ -49,4 +48,5 @@ class CheckRole
 
         abort(403, 'Unauthorized access.');
     }
+}
 }

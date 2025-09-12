@@ -17,33 +17,67 @@ class UserDashboardController extends Controller
     {
         $user = Auth::user();
 
-        // User booking statistics
-        $stats = [
-            'total_bookings' => Booking::where('user_id', $user->id)->count(),
-            'completed'      => Booking::where('user_id', $user->id)->where('status', 'completed')->count(),
-            'pending'        => Booking::where('user_id', $user->id)->where('status', 'pending')->count(),
-            'spent'          => Booking::where('user_id', $user->id)->where('status', 'completed')->sum('amount'),
+        return view('dashboards.user', [
+            'user'              => $user,
+            'stats'             => $this->getUserStats($user->id),
+            'bondingActivities' => $this->getBondingActivities(),
+            'parentingModules'  => $this->getParentingModules(),
+            'allModules'        => $this->getAllModules(),
+            'aiChats'           => $this->getAiChats(),
+        ]);
+    }
+
+    /**
+     * Get user booking statistics.
+     */
+    private function getUserStats(int $userId): array
+    {
+        return [
+            'total_bookings' => Booking::where('user_id', $userId)->count(),
+            'completed'      => Booking::where('user_id', $userId)->where('status', 'completed')->count(),
+            'pending'        => Booking::where('user_id', $userId)->where('status', 'pending')->count(),
+            'spent'          => Booking::where('user_id', $userId)->where('status', 'completed')->sum('amount'),
         ];
+    }
 
-        // Bonding activities (services/events available)
-        $bondingActivities = Service::where('category', 'bonding')
+    /**
+     * Fetch bonding activities.
+     */
+    private function getBondingActivities()
+    {
+        return Service::where('category', 'bonding')
             ->latest()
             ->take(5)
             ->get();
+    }
 
-        // Parenting modules (learning content)
-        $parentingModules = Module::where('type', 'parenting')
+    /**
+     * Fetch parenting modules.
+     */
+    private function getParentingModules()
+    {
+        return Module::where('type', 'parenting')
             ->latest()
             ->take(5)
             ->get();
+    }
 
-        // All modules (general learning/digital wellness)
-        $allModules = Module::latest()
+    /**
+     * Fetch general learning/digital wellness modules.
+     */
+    private function getAllModules()
+    {
+        return Module::latest()
             ->take(10)
             ->get();
+    }
 
-        // AI Chats (static for now, but could be from DB or API later)
-        $aiChats = [
+    /**
+     * Static list of AI chat assistants.
+     */
+    private function getAiChats(): array
+    {
+        return [
             [
                 'title'       => 'Family Wellbeing Assistant',
                 'description' => 'Chat with AI to explore family digital wellness strategies.',
@@ -55,15 +89,6 @@ class UserDashboardController extends Controller
                 'link'        => route('ai.chat', ['assistant' => 'parenting']),
             ],
         ];
-
-        return view('dashboards.user', compact(
-            'user',
-            'stats',
-            'bondingActivities',
-            'parentingModules',
-            'allModules',
-            'aiChats'
-        ));
     }
 
     /**

@@ -12,8 +12,13 @@ use App\Http\Controllers\Auth\{
     RegisteredUserController,
     VerifyEmailController
 };
+use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Parent\ParentDashboardController;
+use App\Http\Controllers\ServiceProvider\ServiceProviderDashboardController;
 
+// ==============================
 // Guest routes (unauthenticated users)
+// ==============================
 Route::middleware('guest')->group(function () {
 
     // Registration
@@ -37,7 +42,9 @@ Route::middleware('guest')->group(function () {
         ->name('password.store');
 });
 
+// ==============================
 // Authenticated routes (users that are logged in)
+// ==============================
 Route::middleware('auth')->group(function () {
 
     // Email verification
@@ -60,4 +67,43 @@ Route::middleware('auth')->group(function () {
     // Logout
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
+
+    // ==============================
+    // Dashboard Redirect by Role
+    // ==============================
+    Route::get('/dashboard', function () {
+        $user = auth()->user();
+
+        if ($user->hasRole('admin')) {
+            return redirect()->route('admin.dashboard');
+        } elseif ($user->hasRole('parent')) {
+            return redirect()->route('parent.dashboard');
+        } elseif ($user->hasRole('service_provider')) {
+            return redirect()->route('service.dashboard');
+        }
+
+        return abort(403, 'Unauthorized access.');
+    })->name('dashboard');
+
+    // ==============================
+    // Role Based Dashboards
+    // ==============================
+
+    // Admin
+    Route::middleware('role:admin')->prefix('admin')->group(function () {
+        Route::get('dashboard', [AdminDashboardController::class, 'index'])
+            ->name('admin.dashboard');
+    });
+
+    // Parent
+    Route::middleware('role:parent')->prefix('parent')->group(function () {
+        Route::get('dashboard', [ParentDashboardController::class, 'index'])
+            ->name('parent.dashboard');
+    });
+
+    // Service Provider
+    Route::middleware('role:service_provider')->prefix('service')->group(function () {
+        Route::get('dashboard', [ServiceProviderDashboardController::class, 'index'])
+            ->name('service.dashboard');
+    });
 });

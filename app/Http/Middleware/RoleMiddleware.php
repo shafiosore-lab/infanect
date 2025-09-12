@@ -17,24 +17,24 @@ class RoleMiddleware
      */
     public function handle(Request $request, Closure $next, ...$roles): Response
     {
-        if (!auth()->check()) {
+        $user = $request->user();
+
+        if (!$user) {
             return redirect()->route('login');
         }
 
-        $user = auth()->user();
-        $userRole = $user->role->slug ?? null;
+        // Get user's role
+        $userRole = $user->role_id ?? ($user->role->slug ?? 'client');
 
-        // Handle comma-separated roles in a single parameter
-        $allowedRoles = [];
-        foreach ($roles as $role) {
-            if (str_contains($role, ',')) {
-                $allowedRoles = array_merge($allowedRoles, explode(',', $role));
-            } else {
-                $allowedRoles[] = $role;
-            }
+        // Check if user has any of the required roles
+        if (in_array($userRole, $roles)) {
+            return $next($request);
         }
 
-        \Log::info('RoleMiddleware check', [
+        // If user doesn't have required role, redirect to their appropriate dashboard
+        return redirect()->route('dashboard')->with('error', 'Access denied. You don\'t have permission to access that area.');
+    }
+}
             'user_id' => $user->id,
             'user_role' => $userRole,
             'required_roles' => $allowedRoles,
