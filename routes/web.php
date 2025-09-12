@@ -184,7 +184,7 @@ Route::get('/resources/mental-health', [\App\Http\Controllers\CalmSpaceControlle
 | Provider Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'role:provider'])->prefix('provider')->name('provider.')->group(function () {
+Route::middleware(['auth', 'role:provider-professional,provider-bonding'])->prefix('provider')->name('provider.')->group(function () {
     Route::get('dashboard', [\App\Http\Controllers\Provider\DashboardController::class, 'index'])->name('dashboard');
     Route::resource('services', \App\Http\Controllers\Provider\ServiceController::class);
     Route::resource('bookings', \AppHttp\Controllers\Provider\BookingController::class)->only(['index', 'show', 'update']);
@@ -203,12 +203,28 @@ Route::middleware(['auth', 'role:provider'])->prefix('provider')->name('provider
     Route::post('payments/mpesa/callback', [\App\Http\Controllers\PaymentController::class, 'mpesaCallback'])->name('payments.mpesa.callback');
 });
 
+// Activity Provider Routes - specific to bonding/activity providers
+Route::middleware(['auth', 'role:provider-bonding'])->prefix('provider')->name('provider.')->group(function () {
+    // Activity management for activity providers
+    Route::resource('activities', \App\Http\Controllers\Admin\ActivityController::class)->except(['index', 'show']);
+    Route::get('my-activities', [\App\Http\Controllers\Admin\ActivityController::class, 'index'])->name('activities.index');
+    Route::get('activities/{activity}', [\App\Http\Controllers\Admin\ActivityController::class, 'show'])->name('activities.show');
+});
+
 /*
 |--------------------------------------------------------------------------
 | Admin Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'role:super-admin'])->prefix('admin')->name('admin.')->group(function () {
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+    // Activities management - accessible by super-admins, admins, and activity providers
+    Route::middleware(['role:super-admin,admin,provider-bonding'])->group(function () {
+        Route::resource('activities', \App\Http\Controllers\Admin\ActivityController::class);
+        Route::post('activities/{activity}/approve', [\App\Http\Controllers\Admin\ActivityController::class, 'approve'])->name('activities.approve');
+    });
+
+    // Super admin only routes
+    Route::middleware(['role:super-admin'])->group(function () {
     // User management
     Route::get('users', [\App\Http\Controllers\Admin\UserManagementController::class, 'index'])->name('users.index');
     Route::post('users/{id}/update-role', [\App\Http\Controllers\Admin\UserManagementController::class, 'updateRole'])->name('users.update-role');
@@ -216,9 +232,6 @@ Route::middleware(['auth', 'role:super-admin'])->prefix('admin')->name('admin.')
     // Documents
     Route::get('documents', [\App\Http\Controllers\DocumentAdminController::class, 'index'])->name('documents.index');
     Route::delete('documents/{id}', [\App\Http\Controllers\DocumentAdminController::class, 'destroy'])->name('documents.destroy');
-
-    // Activities
-    Route::resource('activities', \AppHttp\Controllers\ActivityController::class);
 
     // Providers
     Route::resource('providers', \App\Http\Controllers\ProviderController::class);
@@ -251,7 +264,9 @@ Route::middleware(['auth', 'role:super-admin'])->prefix('admin')->name('admin.')
     Route::get('analytics/growth-trends', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'growthTrends'])->name('analytics.growth-trends');
     Route::get('analytics/retention', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'retention'])->name('analytics.retention');
     Route::get('analytics/engagement-heatmaps', [\AppHttp\Controllers\Admin\AnalyticsController::class, 'engagementHeatmaps'])->name('analytics.engagement-heatmaps');
-});
+    }); // Close super admin only routes
+
+}); // Close admin routes
 
 // Optional diagnostics include
 if (file_exists(__DIR__.'/diagnose_missing_routes.php')) {

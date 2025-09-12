@@ -24,14 +24,24 @@ class RoleMiddleware
         $user = auth()->user();
         $userRole = $user->role->slug ?? null;
 
+        // Handle comma-separated roles in a single parameter
+        $allowedRoles = [];
+        foreach ($roles as $role) {
+            if (str_contains($role, ',')) {
+                $allowedRoles = array_merge($allowedRoles, explode(',', $role));
+            } else {
+                $allowedRoles[] = $role;
+            }
+        }
+
         \Log::info('RoleMiddleware check', [
             'user_id' => $user->id,
             'user_role' => $userRole,
-            'required_roles' => $roles,
-            'allowed' => $userRole && in_array($userRole, $roles)
+            'required_roles' => $allowedRoles,
+            'allowed' => $userRole && in_array($userRole, $allowedRoles)
         ]);
 
-        if (!$userRole || !in_array($userRole, $roles)) {
+        if (!$userRole || !in_array($userRole, $allowedRoles)) {
             abort(403, 'Unauthorized access');
         }
 

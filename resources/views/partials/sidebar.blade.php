@@ -1,199 +1,469 @@
-<div class="h-screen flex flex-col bg-gradient-to-b from-slate-900 via-indigo-900 to-slate-800 text-white shadow-lg">
+<!-- FontAwesome Icons -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<div class="sidebar-modern vh-100 d-flex flex-column text-white position-fixed start-0 top-0 shadow-lg" style="width: 280px; background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #0f172a 100%); z-index: 1030;">
 
     <!-- Brand -->
-    <div class="px-4 py-3 border-b bg-gray-900 flex items-center gap-2">
-        <h2 class="text-lg font-semibold text-gray-100">Infanect</h2>
+    <div class="brand-section px-4 py-4 border-bottom border-secondary d-flex align-items-center gap-3">
+        <div class="brand-icon bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+            <i class="fas fa-heart text-white"></i>
+        </div>
+        <h2 class="h5 mb-0 fw-bold text-white">Infanect</h2>
     </div>
 
     <!-- Sidebar Content -->
-    <nav class="h-full px-2 py-4 text-sm text-gray-200 bg-gray-800" x-data="{ openMenu: null }>
+    <div class="accordion" id="sidebarAccordion">
+    <nav class="sidebar-nav flex-grow-1 px-3 py-4 overflow-auto" data-bs-spy="scroll">
 
         <!-- Dashboard -->
         <a href="{{ route('dashboard') }}"
-           class="flex items-center gap-3 px-3 py-2 rounded-md transition-all duration-200
-                  {{ request()->routeIs('dashboard') ? 'bg-gray-700' : 'text-gray-200 hover:bg-gray-700' }}">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12h18M12 3v18"/></svg>
+           class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+            <i class="fas fa-tachometer-alt"></i>
             <span>Dashboard Overview</span>
         </a>
 
         @if(auth()->user()->isSuperAdmin())
 
         <!-- ACTIVITIES & MODULES -->
-        <div>
-            <button @click="openMenu === 1 ? openMenu = null : openMenu = 1"
-                    class="flex justify-between items-center w-full px-4 py-3 text-gray-200 hover:bg-gray-700 rounded-md">
+        <div class="accordion-item border-0 bg-transparent">
+            <button class="accordion-button collapsed nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#activitiesCollapse">
+                <i class="fas fa-users"></i>
                 <span>Activities & Providers</span>
-                <svg :class="openMenu === 1 ? 'rotate-90' : ''" class="h-4 w-4 transform transition-transform"
-                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
             </button>
-            <div x-show="openMenu === 1" class="pl-8 space-y-2 py-2">
-                <a href="{{ route('admin.activities.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">All Activities</a>
-                <a href="{{ route('admin.providers.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">All Providers</a>
-                <a href="{{ route('admin.approvals.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Pending Approvals</a>
-                <a href="{{ route('admin.modules.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Modules & Categories</a>
-                <a href="{{ route('admin.ai.recommendations') }}" class="block py-2 text-gray-200 hover:text-indigo-400">AI Recommendations</a>
+            <div id="activitiesCollapse" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <a href="{{ route('admin.activities.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-list"></i>
+                        <span>All Activities</span>
+                    </a>
+                    <a href="{{ route('admin.providers.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-user-md"></i>
+                        <span>All Providers</span>
+                    </a>
+                    <a href="{{ route('admin.approvals.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-check-circle"></i>
+                        <span>Pending Approvals</span>
+                    </a>
+                    <a href="{{ route('admin.modules.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-cubes"></i>
+                        <span>Modules & Categories</span>
+                    </a>
+                    <a href="{{ route('admin.ai.recommendations') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-robot"></i>
+                        <span>AI Recommendations</span>
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- USER & ACCESS -->
-        <div>
-            <button @click="openMenu === 2 ? openMenu = null : openMenu = 2"
-                    class="flex justify-between items-center w-full px-4 py-3 text-gray-200 hover:bg-gray-700 rounded-md">
+        <div class="accordion-item border-0 bg-transparent">
+            <button class="accordion-button collapsed nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#userAccessCollapse">
+                <i class="fas fa-user-shield"></i>
                 <span>User & Access</span>
-                <svg :class="openMenu === 2 ? 'rotate-90' : ''" class="h-4 w-4 transform transition-transform"
-                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
             </button>
-            <div x-show="openMenu === 2" class="pl-8 space-y-2 py-2">
-                <a href="{{ route('admin.users.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Users Management</a>
-                <a href="{{ route('admin.roles') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Roles & Permissions</a>
-                <a href="{{ route('admin.settings') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Platform Settings</a>
+            <div id="userAccessCollapse" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <a href="{{ route('admin.users.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-users-cog"></i>
+                        <span>Users Management</span>
+                    </a>
+                    <a href="{{ route('admin.roles') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-key"></i>
+                        <span>Roles & Permissions</span>
+                    </a>
+                    <a href="{{ route('admin.settings') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-cogs"></i>
+                        <span>Platform Settings</span>
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- SERVICES -->
-        <div>
-            <button @click="openMenu === 3 ? openMenu = null : openMenu = 3"
-                    class="flex justify-between items-center w-full px-4 py-3 text-gray-200 hover:bg-gray-700 rounded-md">
+        <div class="accordion-item border-0 bg-transparent">
+            <button class="accordion-button collapsed nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#servicesCollapse">
+                <i class="fas fa-concierge-bell"></i>
                 <span>Service Providers</span>
-                <svg :class="openMenu === 3 ? 'rotate-90' : ''" class="h-4 w-4 transform transition-transform"
-                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
             </button>
-            <div x-show="openMenu === 3" class="pl-8 space-y-2 py-2">
-                <a href="{{ route('admin.services.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Services</a>
-                <a href="{{ route('admin.categories.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Service Categories</a>
-                <a href="{{ route('admin.service.insights') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Service Insights</a>
+            <div id="servicesCollapse" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <a href="{{ route('admin.services.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-tools"></i>
+                        <span>Services</span>
+                    </a>
+                    <a href="{{ route('admin.categories.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-tags"></i>
+                        <span>Service Categories</span>
+                    </a>
+                    <a href="{{ route('admin.service.insights') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-chart-line"></i>
+                        <span>Service Insights</span>
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- CLIENTS / USERS -->
-        <div>
-            <button @click="openMenu === 4 ? openMenu = null : openMenu = 4"
-                    class="flex justify-between items-center w-full px-4 py-3 text-gray-200 hover:bg-gray-700 rounded-md">
+        <div class="accordion-item border-0 bg-transparent">
+            <button class="accordion-button collapsed nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#clientsCollapse">
+                <i class="fas fa-users"></i>
                 <span>Clients / Users</span>
-                <svg :class="openMenu === 4 ? 'rotate-90' : ''" class="h-4 w-4 transform transition-transform"
-                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
             </button>
-            <div x-show="openMenu === 4" class="pl-8 space-y-2 py-2">
-                <a href="{{ route('admin.clients.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Clients List</a>
-                <a href="{{ route('admin.bookings.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Bookings</a>
-                <a href="{{ route('admin.modules.index') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Bonding / Parenting Modules</a>
-                <a href="{{ route('admin.client.insights') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Client Insights</a>
-                <a href="{{ route('admin.feedback') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Feedback & Reviews</a>
-                <a href="{{ route('admin.ai.chat') }}" class="block py-2 text-gray-200 hover:text-indigo-400">AI Chat Support</a>
+            <div id="clientsCollapse" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <a href="{{ route('admin.clients.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-address-book"></i>
+                        <span>Clients List</span>
+                    </a>
+                    <a href="{{ route('admin.bookings.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Bookings</span>
+                    </a>
+                    <a href="{{ route('admin.modules.index') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-book"></i>
+                        <span>Bonding / Parenting Modules</span>
+                    </a>
+                    <a href="{{ route('admin.client.insights') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Client Insights</span>
+                    </a>
+                    <a href="{{ route('admin.feedback') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-star"></i>
+                        <span>Feedback & Reviews</span>
+                    </a>
+                    <a href="{{ route('admin.ai.chat') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-robot"></i>
+                        <span>AI Chat Support</span>
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- FINANCIALS -->
-        <div>
-            <button @click="openMenu === 5 ? openMenu = null : openMenu = 5"
-                    class="flex justify-between items-center w-full px-4 py-3 text-gray-200 hover:bg-gray-700 rounded-md">
+        <div class="accordion-item border-0 bg-transparent">
+            <button class="accordion-button collapsed nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#financialsCollapse">
+                <i class="fas fa-dollar-sign"></i>
                 <span>Financials</span>
-                <svg :class="openMenu === 5 ? 'rotate-90' : ''" class="h-4 w-4 transform transition-transform"
-                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
-                <span class="ml-2 bg-red-500 px-2 rounded-full text-xs">{{ $pendingTransactions ?? 0 }}</span>
+                @if(isset($pendingTransactions) && $pendingTransactions > 0)
+                    <span class="badge bg-danger rounded-pill ms-auto">{{ $pendingTransactions }}</span>
+                @endif
             </button>
-            <div x-show="openMenu === 5" class="pl-8 space-y-2 py-2">
-                <a href="{{ route('admin.finance.insights') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Financial Insights</a>
-                <a href="{{ route('admin.earnings') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Earnings & Payouts</a>
-                <a href="{{ route('admin.invoices') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Invoices & Billing</a>
-                <a href="{{ route('admin.subscriptions') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Subscription Plans</a>
+            <div id="financialsCollapse" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <a href="{{ route('admin.finance.insights') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Financial Insights</span>
+                    </a>
+                    <a href="{{ route('admin.earnings') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>Earnings & Payouts</span>
+                    </a>
+                    <a href="{{ route('admin.invoices') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                        <span>Invoices & Billing</span>
+                    </a>
+                    <a href="{{ route('admin.subscriptions') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-crown"></i>
+                        <span>Subscription Plans</span>
+                    </a>
+                </div>
             </div>
         </div>
 
         <!-- OPERATIONS -->
-        <div>
-            <button @click="openMenu === 6 ? openMenu = null : openMenu = 6"
-                    class="flex justify-between items-center w-full px-4 py-3 text-gray-200 hover:bg-gray-700 rounded-md">
+        <div class="accordion-item border-0 bg-transparent">
+            <button class="accordion-button collapsed nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-accordion-btn" type="button" data-bs-toggle="collapse" data-bs-target="#operationsCollapse">
+                <i class="fas fa-cogs"></i>
                 <span>Operations</span>
-                <svg :class="openMenu === 6 ? 'rotate-90' : ''" class="h-4 w-4 transform transition-transform"
-                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                </svg>
             </button>
-            <div x-show="openMenu === 6" class="pl-8 space-y-2 py-2">
-                <a href="{{ route('admin.tasks') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Tasks</a>
-                <a href="{{ route('admin.team') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Team</a>
-                <a href="{{ route('admin.reports') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Reports</a>
-                <a href="{{ route('admin.notifications') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Notifications</a>
-                <a href="{{ route('admin.support') }}" class="block py-2 text-gray-200 hover:text-indigo-400">Support Tickets</a>
+            <div id="operationsCollapse" class="accordion-collapse collapse" data-bs-parent="#sidebarAccordion">
+                <div class="accordion-body p-0">
+                    <a href="{{ route('admin.tasks') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-tasks"></i>
+                        <span>Tasks</span>
+                    </a>
+                    <a href="{{ route('admin.team') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-user-friends"></i>
+                        <span>Team</span>
+                    </a>
+                    <a href="{{ route('admin.reports') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-file-alt"></i>
+                        <span>Reports</span>
+                    </a>
+                    <a href="{{ route('admin.notifications') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-bell"></i>
+                        <span>Notifications</span>
+                    </a>
+                    <a href="{{ route('admin.support') }}" class="nav-link d-flex align-items-center gap-3 px-4 py-2 ms-3 mb-1 rounded-2 transition-all sidebar-submenu-link">
+                        <i class="fas fa-headset"></i>
+                        <span>Support Tickets</span>
+                    </a>
+                </div>
             </div>
         </div>
 
         @elseif(auth()->user()->isServiceProvider())
             <!-- Service Provider Menu -->
-            <a href="{{ route('services.index') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                🛠️ My Services
+            <a href="{{ route('services.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-tools"></i>
+                <span>My Services</span>
             </a>
-            <a href="{{ route('bookings.index') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                📋 Bookings
+            <a href="{{ route('bookings.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-calendar-check"></i>
+                <span>Bookings</span>
             </a>
-            <a href="{{ route('profile.edit') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                👤 Profile
+            <a href="{{ route('profile.edit') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
             </a>
 
         @elseif(auth()->user()->isActivityProvider())
             <!-- Activity Provider Menu -->
-            <a href="{{ route('activities.index') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                🎯 My Activities
+            <a href="{{ route('activities.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-bullseye"></i>
+                <span>My Activities</span>
             </a>
-            <a href="{{ route('bookings.index') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                📋 Registrations
+            <a href="{{ route('bookings.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-users"></i>
+                <span>Registrations</span>
             </a>
-            <a href="{{ route('profile.edit') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                👤 Profile
+            <a href="{{ route('profile.edit') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
             </a>
 
         @elseif(auth()->user()->isClient() || auth()->user()->isUser())
             <!-- Client / User Menu -->
-            <a href="{{ route('user.modules.index') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                📚 Modules & Activities
+            <a href="{{ route('user.modules.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-book"></i>
+                <span>Modules & Activities</span>
             </a>
-            <a href="{{ route('user.bookings.index') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                📋 My Bookings
+            <a href="{{ route('user.bookings.index') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-calendar-alt"></i>
+                <span>My Bookings</span>
             </a>
-            <a href="{{ route('profile.edit') }}" class="flex items-center px-4 py-3 rounded-lg text-slate-300 hover:bg-indigo-700 hover:text-white">
-                👤 Profile
+            <a href="{{ route('profile.edit') }}" class="nav-link d-flex align-items-center gap-3 px-3 py-3 rounded-3 mb-2 transition-all sidebar-link">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
             </a>
         @endif
 
     </nav>
+    </div>
+
+    <!-- User Profile Section -->
+    <div class="user-profile px-3 py-3 border-top border-secondary mt-auto">
+        <div class="d-flex align-items-center gap-3">
+            <div class="user-avatar bg-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                <i class="fas fa-user text-white"></i>
+            </div>
+            <div class="flex-grow-1">
+                <div class="fw-semibold text-white small">{{ auth()->user()->name }}</div>
+                <div class="text-muted small">{{ auth()->user()->role->name ?? 'User' }}</div>
+            </div>
+            <a href="{{ route('logout') }}" class="btn btn-sm btn-outline-light" onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
+                <i class="fas fa-sign-out-alt"></i>
+            </a>
+            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
+                @csrf
+            </form>
+        </div>
+    </div>
 </div>
 
 <style>
-/* Force sidebar appearance to black with white text/links */
-aside, .sidebar, .side-nav, .main-sidebar, .partial-sidebar {
-    background-color: #000 !important;
-    color: #fff !important;
+/* Modern Sidebar Styles */
+.sidebar-modern {
+    backdrop-filter: blur(10px);
+    border-right: 1px solid rgba(255,255,255,0.1);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-aside a, .sidebar a, .side-nav a, .main-sidebar a, .partial-sidebar a,
-.sidebar .nav-link, .side-nav .nav-link {
-    color: #fff !important;
+.sidebar-modern:hover {
+    box-shadow: 4px 0 20px rgba(0,0,0,0.3);
 }
 
-/* Active/hover states */
-.sidebar .active, .side-nav .active, .main-sidebar .active {
-    background-color: #111 !important;
-}
-.sidebar a:hover, .side-nav a:hover, .main-sidebar a:hover {
-    color: #fff !important;
-    background-color: rgba(255,255,255,0.05) !important;
+.brand-section {
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(102, 16, 242, 0.1));
+    border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
-/* Hide scrollbars for sidebar nav */
-.hide-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
-.hide-scrollbar::-webkit-scrollbar { display: none; }
+.brand-icon {
+    animation: pulse 2s infinite;
+}
+
+.sidebar-nav {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.3) transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+
+.sidebar-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+}
+
+.sidebar-nav::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.5);
+}
+
+.sidebar-link {
+    color: rgba(255,255,255,0.8) !important;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.sidebar-link::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    transition: left 0.5s;
+}
+
+.sidebar-link:hover::before {
+    left: 100%;
+}
+
+.sidebar-link:hover {
+    background: rgba(255,255,255,0.1) !important;
+    color: white !important;
+    transform: translateX(4px);
+}
+
+.sidebar-link.active {
+    background: linear-gradient(135deg, #0d6efd, #6610f2) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(13, 110, 253, 0.3);
+}
+
+.sidebar-accordion-btn {
+    color: rgba(255,255,255,0.8) !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: 8px !important;
+    transition: all 0.3s ease !important;
+}
+
+.sidebar-accordion-btn:hover {
+    background: rgba(255,255,255,0.1) !important;
+    color: white !important;
+}
+
+.sidebar-accordion-btn:not(.collapsed) {
+    background: rgba(255,255,255,0.1) !important;
+    color: white !important;
+}
+
+.sidebar-submenu-link {
+    color: rgba(255,255,255,0.7) !important;
+    padding: 0.5rem 1rem !important;
+    margin: 2px 0 !important;
+    border-radius: 6px !important;
+    transition: all 0.3s ease !important;
+    font-size: 0.9rem !important;
+}
+
+.sidebar-submenu-link:hover {
+    background: rgba(255,255,255,0.1) !important;
+    color: white !important;
+    transform: translateX(4px);
+}
+
+.user-profile {
+    background: rgba(0,0,0,0.2);
+    border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.user-avatar {
+    animation: bounceIn 0.6s ease-out;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+@keyframes bounceIn {
+    0% { transform: scale(0.3); opacity: 0; }
+    50% { transform: scale(1.05); }
+    70% { transform: scale(0.9); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Accordion Animation */
+.accordion-button::after {
+    filter: invert(1);
+    transition: transform 0.3s ease;
+}
+
+.accordion-button:not(.collapsed)::after {
+    transform: rotate(90deg);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .sidebar-modern {
+        width: 100% !important;
+        position: relative !important;
+    }
+}
 </style>
+
+<script>
+// Initialize Bootstrap accordion
+document.addEventListener('DOMContentLoaded', function() {
+    // Add smooth scrolling to sidebar navigation
+    const sidebarLinks = document.querySelectorAll('.sidebar-nav .nav-link');
+    sidebarLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Add ripple effect
+            const ripple = document.createElement('span');
+            ripple.style.position = 'absolute';
+            ripple.style.borderRadius = '50%';
+            ripple.style.background = 'rgba(255,255,255,0.3)';
+            ripple.style.transform = 'scale(0)';
+            ripple.style.animation = 'ripple 0.6s linear';
+            ripple.style.left = '50%';
+            ripple.style.top = '50%';
+            ripple.style.width = '20px';
+            ripple.style.height = '20px';
+            ripple.style.marginLeft = '-10px';
+            ripple.style.marginTop = '-10px';
+            this.appendChild(ripple);
+
+            setTimeout(() => ripple.remove(), 600);
+        });
+    });
+});
+
+// Add ripple animation
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes ripple {
+        to {
+            transform: scale(4);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
 
 <!-- Mood Submission Modal -->
 <div class="modal fade" id="moodModal" tabindex="-1" aria-labelledby="moodModalLabel" aria-hidden="true">
