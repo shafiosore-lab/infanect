@@ -26,12 +26,57 @@
                 @endif
             </p>
         </div>
-        @if($canCreate)
-        <a href="{{ route('admin.activities.create') }}" class="btn btn-primary">
-            <i class="fas fa-plus me-2"></i>Create New Activity
-        </a>
-        @endif
+        <div class="d-flex gap-2">
+            @if($canCreate)
+            <a href="{{ route('admin.activities.create') }}" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>Create New Activity
+            </a>
+            @endif
+
+            @if($canEditAll)
+            <button type="button" class="btn btn-outline-success" onclick="toggleBulkActions()">
+                <i class="fas fa-check-square me-2"></i>Bulk Actions
+            </button>
+            @endif
+        </div>
     </div>
+
+    <!-- Bulk Actions Bar (Hidden by default) -->
+    @if($canEditAll)
+    <div id="bulkActionsBar" class="card mb-4" style="display: none;">
+        <div class="card-body">
+            <form id="bulkActionForm" method="POST" action="{{ route('admin.activities.bulk-action') }}">
+                @csrf
+                <div class="row align-items-end g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Selected Activities</label>
+                        <input type="text" class="form-control" id="selectedCount" value="0 selected" readonly>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Action</label>
+                        <select name="action" class="form-select" required>
+                            <option value="">Choose action...</option>
+                            <option value="approve">Approve Selected</option>
+                            <option value="reject">Reject Selected</option>
+                            <option value="suspend">Suspend Selected</option>
+                            <option value="delete">Delete Selected</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="submit" class="btn btn-primary" disabled id="bulkSubmit">
+                            <i class="fas fa-bolt me-2"></i>Execute Action
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button type="button" class="btn btn-outline-secondary" onclick="toggleBulkActions()">
+                            <i class="fas fa-times me-2"></i>Cancel
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    @endif
 
     <!-- Filters Section -->
     <div class="card mb-4">
@@ -77,7 +122,14 @@
     <div class="row">
         @forelse($activities as $activity)
         <div class="col-xl-4 col-md-6 mb-4">
-            <div class="card h-100 shadow-sm border-0 activity-card">
+            <div class="card h-100 shadow-sm border-0 activity-card" data-activity-id="{{ $activity->id }}">
+                @if($canEditAll)
+                <!-- Bulk Selection Checkbox -->
+                <div class="position-absolute top-0 start-0 m-2" style="z-index: 10;">
+                    <input type="checkbox" class="form-check-input activity-checkbox" value="{{ $activity->id }}" style="transform: scale(1.2);">
+                </div>
+                @endif
+
                 <!-- Activity Image -->
                 <div class="position-relative">
                     @if($activity->images && count($activity->images) > 0)
@@ -162,14 +214,36 @@
                             </a>
                         @endif
 
-                        @if($canApprove && !$activity->is_approved)
-                        <form method="POST" action="{{ route('admin.activities.approve', $activity) }}" class="d-inline">
-                            @csrf
-                            <input type="hidden" name="approved" value="1">
-                            <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Approve this activity?')">
-                                <i class="fas fa-check me-1"></i>Approve
-                            </button>
-                        </form>
+                        @if($canApprove)
+                            @if(!$activity->is_approved)
+                            <form method="POST" action="{{ route('admin.activities.approve', $activity) }}" class="d-inline">
+                                @csrf
+                                <input type="hidden" name="approved" value="1">
+                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Approve this activity?')">
+                                    <i class="fas fa-check me-1"></i>Approve
+                                </button>
+                            </form>
+                            @endif
+
+                            @if($activity->is_approved)
+                            <form method="POST" action="{{ route('admin.activities.suspend', $activity) }}" class="d-inline">
+                                @csrf
+                                <input type="hidden" name="suspended" value="1">
+                                <button type="submit" class="btn btn-sm btn-warning" onclick="return confirm('Suspend this activity?')">
+                                    <i class="fas fa-pause me-1"></i>Suspend
+                                </button>
+                            </form>
+                            @endif
+
+                            @if(!$activity->is_approved)
+                            <form method="POST" action="{{ route('admin.activities.approve', $activity) }}" class="d-inline">
+                                @csrf
+                                <input type="hidden" name="approved" value="0">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Reject this activity?')">
+                                    <i class="fas fa-times me-1"></i>Reject
+                                </button>
+                            </form>
+                            @endif
                         @endif
 
                         @if((auth()->user()->isActivityProvider() && $activity->provider_id == auth()->id()) || $canEditAll)
@@ -248,7 +322,92 @@
     font-size: 0.875rem;
     padding: 0.375rem 0.75rem;
 }
+
+#bulkActionsBar {
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+let bulkActionsVisible = false;
+
+function toggleBulkActions() {
+    const bulkBar = document.getElementById('bulkActionsBar');
+    const checkboxes = document.querySelectorAll('.activity-checkbox');
+
+    if (bulkActionsVisible) {
+        // Hide bulk actions
+        bulkBar.style.display = 'none';
+        checkboxes.forEach(cb => cb.checked = false);
+        updateBulkActionState();
+        bulkActionsVisible = false;
+    } else {
+        // Show bulk actions
+        bulkBar.style.display = 'block';
+        bulkActionsVisible = true;
+    }
+}
+
+function updateBulkActionState() {
+    const checkboxes = document.querySelectorAll('.activity-checkbox:checked');
+    const count = checkboxes.length;
+    const submitBtn = document.getElementById('bulkSubmit');
+    const countDisplay = document.getElementById('selectedCount');
+
+    countDisplay.value = count + ' selected';
+    submitBtn.disabled = count === 0;
+
+    // Update hidden input with selected IDs
+    let existingInput = document.querySelector('input[name="activity_ids[]"]');
+    if (existingInput) {
+        existingInput.remove();
+    }
+
+    checkboxes.forEach(cb => {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'activity_ids[]';
+        input.value = cb.value;
+        document.getElementById('bulkActionForm').appendChild(input);
+    });
+}
+
+// Add event listeners when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    // Add change listeners to all checkboxes
+    document.querySelectorAll('.activity-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateBulkActionState);
+    });
+
+    // Handle bulk form submission
+    document.getElementById('bulkActionForm')?.addEventListener('submit', function(e) {
+        const action = this.querySelector('select[name="action"]').value;
+        const count = document.querySelectorAll('.activity-checkbox:checked').length;
+
+        if (count === 0) {
+            e.preventDefault();
+            alert('Please select at least one activity');
+            return;
+        }
+
+        const actionName = action.charAt(0).toUpperCase() + action.slice(1);
+        if (!confirm(`Are you sure you want to ${action} ${count} selected activities?`)) {
+            e.preventDefault();
+        }
+    });
+});
+</script>
 @endsection

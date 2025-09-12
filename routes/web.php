@@ -221,6 +221,8 @@ Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () 
     Route::middleware(['role:super-admin,admin,provider-bonding'])->group(function () {
         Route::resource('activities', \App\Http\Controllers\Admin\ActivityController::class);
         Route::post('activities/{activity}/approve', [\App\Http\Controllers\Admin\ActivityController::class, 'approve'])->name('activities.approve');
+        Route::post('activities/{activity}/suspend', [\App\Http\Controllers\Admin\ActivityController::class, 'suspend'])->name('activities.suspend');
+        Route::post('activities/bulk-action', [\App\Http\Controllers\Admin\ActivityController::class, 'bulkAction'])->name('activities.bulk-action');
     });
 
     // Super admin only routes

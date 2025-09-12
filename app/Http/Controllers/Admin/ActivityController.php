@@ -240,6 +240,73 @@ class ActivityController extends Controller
     }
 
     /**
+     * Suspend an activity.
+     */
+    public function suspend(Activity $activity, Request $request)
+    {
+        $user = Auth::user();
+
+        // Only admins can suspend
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $suspend = $request->boolean('suspended', true);
+        $activity->update([
+            'is_approved' => !$suspend,
+            'suspended_at' => $suspend ? now() : null
+        ]);
+
+        $status = $suspend ? 'suspended' : 'reactivated';
+
+        return redirect()->back()
+                         ->with('success', "Activity has been {$status}.");
+    }
+
+    /**
+     * Bulk actions for activities.
+     */
+    public function bulkAction(Request $request)
+    {
+        $user = Auth::user();
+
+        // Only admins can perform bulk actions
+        if (!$user->isSuperAdmin() && !$user->isAdmin()) {
+            abort(403, 'Unauthorized access');
+        }
+
+        $request->validate([
+            'action' => 'required|in:approve,reject,suspend,delete',
+            'activity_ids' => 'required|array',
+            'activity_ids.*' => 'exists:activities,id'
+        ]);
+
+        $activities = Activity::whereIn('id', $request->activity_ids);
+        $count = $activities->count();
+
+        switch ($request->action) {
+            case 'approve':
+                $activities->update(['is_approved' => true, 'suspended_at' => null]);
+                $message = "{$count} activities approved successfully.";
+                break;
+            case 'reject':
+                $activities->update(['is_approved' => false]);
+                $message = "{$count} activities rejected successfully.";
+                break;
+            case 'suspend':
+                $activities->update(['is_approved' => false, 'suspended_at' => now()]);
+                $message = "{$count} activities suspended successfully.";
+                break;
+            case 'delete':
+                $activities->delete();
+                $message = "{$count} activities deleted successfully.";
+                break;
+        }
+
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
      * Remove the specified activity from storage.
      */
     public function destroy(Activity $activity)
