@@ -12,27 +12,27 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="{{ asset('css/app.css') }}" rel="stylesheet">
+
     <style>
         :root {
-            --sidebar-width: 240px;  /* Reduced sidebar width */
-            --navbar-height: 56px;   /* Reduced navbar height */
-            --footer-height: 36px;   /* Reduced footer height */
+            --sidebar-width: 240px;
+            --navbar-height: 56px;
+            --footer-height: 36px;
             --primary: #ea1c4d;
             --accent: #65c16e;
             --warning: #fbc761;
             --darkgray: #333333;
             --infanect-green: #65c16e;
             --sidebar-bg: #222222;
-            --content-padding: 16px; /* Reduced padding for more compact layout */
+            --content-padding: 12px;
         }
 
-        /* Base layout styles */
         body {
             display: flex;
             min-height: 100vh;
             margin: 0;
             overflow: hidden;
-            font-size: 0.95rem; /* Slightly smaller base font size for compact look */
+            font-size: 0.9rem;
         }
 
         .app-container {
@@ -42,7 +42,6 @@
             height: 100vh;
         }
 
-        /* Updated navbar and sidebar positioning */
         .navbar-container {
             height: var(--navbar-height);
             position: fixed;
@@ -57,16 +56,14 @@
             color: white;
         }
 
-        /* Navbar content styling - more compact */
         .navbar-content {
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 0 1rem; /* Reduced padding */
+            padding: 0 1rem;
         }
 
-        /* Updated sidebar to be more compact */
         .sidebar-wrapper {
             width: var(--sidebar-width);
             min-width: var(--sidebar-width);
@@ -84,57 +81,13 @@
             overflow-x: hidden;
         }
 
-        /* More compact sidebar content */
         .sidebar-content {
-            padding: 0.75rem 0.5rem; /* Reduced padding */
+            padding: 0.75rem 0.5rem;
             height: 100%;
             display: flex;
             flex-direction: column;
         }
 
-        .sidebar-header {
-            padding-bottom: 0.5rem; /* Reduced padding */
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            margin-bottom: 0.5rem; /* Reduced margin */
-        }
-
-        .sidebar-section {
-            margin-bottom: 0.5rem; /* Reduced margin */
-        }
-
-        .sidebar-section-title {
-            font-size: 0.7rem; /* Smaller font */
-            text-transform: uppercase;
-            color: #aaaaaa;
-            font-weight: 600;
-            margin-bottom: 0.25rem; /* Reduced margin */
-            padding-left: 0.5rem;
-        }
-
-        .nav-sidebar .nav-link {
-            padding: 0.4rem 0.6rem; /* Reduced padding */
-            border-radius: 4px;
-            color: #e0e0e0;
-            font-size: 0.85rem; /* Smaller font */
-            display: flex;
-            align-items: center;
-            transition: all 0.2s;
-        }
-
-        .nav-sidebar .nav-link:hover,
-        .nav-sidebar .nav-link.active {
-            background-color: rgba(101, 193, 110, 0.2);
-            color: var(--accent);
-        }
-
-        .nav-sidebar .nav-link i {
-            width: 1.1rem; /* Slightly smaller */
-            text-align: center;
-            margin-right: 0.6rem; /* Reduced margin */
-            font-size: 0.85rem; /* Smaller font */
-        }
-
-        /* Improved content area - more compact */
         .content-wrapper {
             flex-grow: 1;
             margin-left: var(--sidebar-width);
@@ -146,7 +99,6 @@
             width: calc(100% - var(--sidebar-width));
         }
 
-        /* Updated main content area - scrollable */
         .main-content {
             flex: 1;
             overflow-y: auto;
@@ -158,7 +110,6 @@
             scroll-behavior: smooth;
         }
 
-        /* Enhanced scrollbar styling for main content */
         .main-content::-webkit-scrollbar {
             width: 8px;
         }
@@ -177,76 +128,125 @@
             background: #a8a8a8;
         }
 
-        /* Professional dashboard specific scrollable improvements */
         .professional-dashboard {
-            padding-bottom: 2rem; /* Extra padding at bottom for better scrolling */
+            padding-bottom: 1.5rem;
         }
 
         .professional-dashboard .dashboard-section {
-            margin-bottom: 2rem; /* More space between sections for better scrolling */
+            margin-bottom: 1.5rem;
         }
 
-        /* Make sure cards and content don't break scrolling */
-        .professional-dashboard .card {
-            overflow: visible; /* Prevent card content from being cut off */
+        .professional-dashboard .card-body {
+            padding: 1rem;
         }
 
-        .professional-dashboard .table-responsive {
-            overflow-x: auto; /* Allow horizontal scroll for tables only */
+        .professional-dashboard .card-header {
+            padding: 0.75rem 1rem;
         }
 
-        /* Navbar brand and links */
-        .navbar-content .navbar-brand {
-            color: white;
+        .chart-container-sm {
+            height: 200px !important;
+            max-height: 200px;
+            position: relative;
+        }
+
+        .chart-container-md {
+            height: 250px !important;
+            max-height: 250px;
+            position: relative;
+        }
+
+        .chart-container-lg {
+            height: 300px !important;
+            max-height: 300px;
+            position: relative;
+        }
+
+        .professional-dashboard .metric-card {
+            max-height: 140px;
+        }
+
+        .professional-dashboard .metric-card .card-body {
+            padding: 0.75rem;
+        }
+
+        .professional-dashboard .metric-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .dashboard-section-title {
+            font-size: 1rem;
             font-weight: 600;
-            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .navbar-content .nav-link {
-            color: rgba(255,255,255,0.85);
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
-            transition: all 0.2s ease;
-        }
-
-        .navbar-content .nav-link:hover,
-        .navbar-content .nav-link:focus {
-            color: white;
-            background-color: rgba(255,255,255,0.1);
-        }
-
-        .navbar-content .dropdown-toggle::after {
-            margin-left: 0.5em;
-            vertical-align: 0.15em;
-        }
-
-        /* Navbar icons */
-        .navbar-content .nav-icon {
-            font-size: 1.1rem;
-            color: rgba(255,255,255,0.85);
+        .avatar-circle {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: bold;
+            font-size: 0.85rem;
         }
 
         .footer-container {
             height: var(--footer-height);
         }
 
-        /* Dashboard components */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(12, 1fr);
-            gap: 20px;
-            margin-bottom: 20px;
+        .footer-infanect {
+            text-align: center;
+            padding: 8px;
+            font-size: 0.8rem;
         }
+    </style>
+    @stack('styles')
 
-        .dashboard-card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-            transition: transform 0.2s, box-shadow 0.2s;
-            overflow: hidden;
-        }
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+</head>
+<body>
+    <div class="navbar-container">
+        <div class="navbar-content">
+            @include('layouts.partials.navbar', ['userRole' => $userRole ?? null])
+        </div>
+    </div>
 
-        .dashboard-card:hover {
+    <div class="app-container">
+        <aside class="sidebar-wrapper">
+            <div class="sidebar-content">
+                @include('layouts.partials.sidebar', ['userRole' => $userRole ?? null, 'isCompact' => true])
+            </div>
+        </aside>
+
+        <div class="content-wrapper">
+            <main class="main-content {{ isset($userRole) && $userRole === 'provider-professional' ? 'professional-dashboard' : '' }}">
+                @yield('content')
+            </main>
+
+            <div class="footer-container">
+                <footer class="footer-infanect">
+                    &copy; {{ date('Y') }} {{ config('app.name', 'Infanect') }}. All rights reserved.
+                </footer>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ asset('js/app.js') }}"></script>
+
+    @stack('scripts')
+</body>
+</html>
             transform: translateY(-3px);
             box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
@@ -1280,7 +1280,10 @@
                             backgroundColor: 'rgba(67,97,238,0.2)'
                         }]
                     },
-                    options: { responsive: true }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
                 });
             }
         });

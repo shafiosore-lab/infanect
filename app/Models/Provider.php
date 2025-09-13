@@ -4,129 +4,71 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Provider extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory;
 
     protected $fillable = [
         'user_id',
-        'name',
         'business_name',
-        'category',
-        'country',
-        'city',
-        'timezone',
-        'language',
-        'status',
-        'business_license_path',
-        'id_document_path',
-        'state',
-        'email',
-        'phone',
-        'address',
-        'postal_code',
-        'latitude',
-        'longitude',
-        'logo',
-        'is_available',
-        'avg_rating',
-        'total_reviews',
-        'total_revenue',
+        'description',
+        'services_offered',
         'location',
+        'phone',
+        'email',
+        'website',
+        'social_media_links',
+        'certifications',
+        'experience_years',
+        'availability_schedule',
+        'pricing_info',
+        'photos',
+        'videos',
+        'is_verified',
+        'verification_documents',
+        'status',
         'rating',
-        'services',
-        'bio',
-        'price',
-        'image_url'
+        'total_reviews'
     ];
 
     protected $casts = [
-        'latitude'     => 'float',
-        'longitude'    => 'float',
-        'is_available' => 'boolean',
-        'avg_rating'   => 'float',
-        'total_reviews' => 'integer',
-        'total_revenue'  => 'float',
-        'services' => 'array',
-        'rating' => 'decimal:1'
+        'services_offered' => 'array',
+        'social_media_links' => 'array',
+        'certifications' => 'array',
+        'availability_schedule' => 'array',
+        'pricing_info' => 'array',
+        'photos' => 'array',
+        'videos' => 'array',
+        'verification_documents' => 'array',
+        'is_verified' => 'boolean',
+        'rating' => 'decimal:2',
     ];
 
-    /**
-     * Relationships
-     */
-    public function user(): BelongsTo
+    public function user()
     {
-        return $this->belongsTo(\App\Models\User::class);
+        return $this->belongsTo(User::class);
     }
 
-    public function services(): HasMany
+    public function bookings()
     {
-        return $this->hasMany(\App\Models\Service::class);
+        return $this->hasMany(Booking::class);
     }
 
-    public function activities(): HasMany
+    public function reviews()
     {
-        return $this->hasMany(\App\Models\Activity::class);
+        return $this->hasMany(Review::class);
     }
 
-    public function documents(): HasMany
+    // Scope for active providers (instead of using soft deletes)
+    public function scopeActive($query)
     {
-        return $this->hasMany(\App\Models\ProviderDocument::class);
+        return $query->where('status', 'active');
     }
 
-    public function transactions(): HasMany
+    // Scope for verified providers
+    public function scopeVerified($query)
     {
-        return $this->hasMany(\App\Models\Transaction::class);
-    }
-
-    /**
-     * Helpers
-     */
-    public function toggleAvailability()
-    {
-        $this->update(['is_available' => !$this->is_available]);
-    }
-
-    public function averageRating()
-    {
-        return $this->reviews()->avg('rating') ?? 0;
-    }
-
-    public function totalRevenue()
-    {
-        // more accurate: only count completed transactions
-        return $this->transactions()->where('status', 'completed')->sum('amount');
-    }
-
-    public function isProfessional()
-    {
-        return in_array($this->category, ['Professional','professional','Provider Professional']) || $this->type === 'provider-professional';
-    }
-
-    public function isBonding()
-    {
-        return in_array($this->category, ['Bonding','bonding']) || $this->type === 'provider-bonding';
-    }
-
-    // Scope for filtering by location
-    public function scopeLocation($query, $location)
-    {
-        return $query->where('location', $location);
-    }
-
-    // Scope for filtering by rating
-    public function scopeRating($query, $minRating)
-    {
-        return $query->where('rating', '>=', $minRating);
-    }
-
-    // Scope for filtering by service
-    public function scopeService($query, $service)
-    {
-        return $query->whereJsonContains('services', $service);
+        return $query->where('is_verified', true);
     }
 }
