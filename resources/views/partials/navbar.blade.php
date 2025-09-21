@@ -5,115 +5,87 @@
             Infanect
         </a>
 
-        <!-- Toggle for mobile -->
+        <!-- Mobile Toggle -->
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#infanectNavbar"
-            aria-controls="infanectNavbar" aria-expanded="false" aria-label="Toggle navigation">
+            aria-controls="infanectNavbar" aria-expanded="false">
             <span class="navbar-toggler-icon"></span>
         </button>
 
-        <!-- Navbar Links -->
+        <!-- Navbar -->
         <div class="collapse navbar-collapse" id="infanectNavbar">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-
-                <!-- Available Services -->
+                <!-- Services -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark" href="#" id="servicesDropdown" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                        Available Services
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="servicesDropdown">
+                        data-bs-toggle="dropdown" aria-expanded="false">Available Services</a>
+                    <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="{{ route('services.index') }}">All Services</a></li>
-                        <li><a class="dropdown-item" href="{{ route('services.popular') }}">Popular Services</a></li>
+                        <li><a class="dropdown-item" href="{{ route('services.popular') }}">Popular</a></li>
                         <li><a class="dropdown-item" href="{{ route('services.categories') }}">By Category</a></li>
                     </ul>
                 </li>
 
-                <!-- Top Bonding Activities -->
+                <!-- Activities -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark" href="#" id="activitiesDropdown" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                        Top Bonding Activities
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="activitiesDropdown">
-                        <li><a class="dropdown-item" href="{{ route('activities.index') }}">All Activities</a></li>
-                        <li><a class="dropdown-item" href="{{ route('activities.family') }}">Family Activities</a></li>
-                        <li><a class="dropdown-item" href="{{ route('activities.outdoor') }}">Outdoor Activities</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{{ route('activities.indoor') }}">Indoor Activities</a></li>
+                        data-bs-toggle="dropdown">Bonding Activities</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ route('activities.index') }}">All</a></li>
+                        <li><a class="dropdown-item" href="{{ route('activities.family') }}">Family</a></li>
+                        <li><a class="dropdown-item" href="{{ route('activities.outdoor') }}">Outdoor</a></li>
+                        <li><a class="dropdown-item" href="{{ route('activities.indoor') }}">Indoor</a></li>
                     </ul>
                 </li>
 
-                <!-- Top Providers -->
+                <!-- Providers -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark" href="#" id="providersDropdown" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                        Top Providers
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="providersDropdown">
-                        <li><a class="dropdown-item" href="{{ route('providers.index') }}">All Providers</a></li>
-                        <li><a class="dropdown-item" href="{{ route('providers.featured') }}">Featured Providers</a>
-                        </li>
+                        data-bs-toggle="dropdown">Providers</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ route('providers.index') }}">All</a></li>
+                        <li><a class="dropdown-item" href="{{ route('providers.featured') }}">Featured</a></li>
                         <li><a class="dropdown-item" href="{{ route('providers.top-rated') }}">Top Rated</a></li>
                     </ul>
                 </li>
 
-                <!-- Training Modules -->
+                <!-- Training -->
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle text-dark" href="#" id="trainingDropdown" role="button"
-                        data-bs-toggle="dropdown" aria-expanded="false">
-                        Training Modules
-                    </a>
-                    <ul class="dropdown-menu" aria-labelledby="trainingDropdown">
+                        data-bs-toggle="dropdown">Training</a>
+                    <ul class="dropdown-menu">
                         <li><a class="dropdown-item" href="{{ route('training-modules.index') }}">All Modules</a></li>
-                        <li><a class="dropdown-item" href="{{ route('training-modules.my-progress') }}">My Progress</a>
-                        </li>
-                        <li><a class="dropdown-item" href="{{ route('ai-chat.index') }}">AI Assisted Learning</a></li>
+                        <li><a class="dropdown-item" href="{{ route('training-modules.my-progress') }}">My Progress</a></li>
+                        <li><a class="dropdown-item" href="{{ route('ai-chat.index') }}">AI Learning</a></li>
                     </ul>
                 </li>
             </ul>
 
-            <nav class="navbar navbar-expand-lg bg-body-tertiary">
-                <div class="container-fluid">
-                    <a class="navbar-brand fw-bold text-success" href="#">Infanect</a>
-                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                        data-bs-target="#navbarScroll" aria-controls="navbarScroll" aria-expanded="false">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
+            <!-- Right Section -->
+            <ul class="navbar-nav ms-auto">
+                <!-- Language Switcher -->
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-dark" href="#" id="languageDropdown" role="button"
+                        data-bs-toggle="dropdown">🌍 {{ strtoupper(app()->getLocale()) }}</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{{ url('locale/en') }}">🇬🇧 English</a></li>
+                        <li><a class="dropdown-item" href="{{ url('locale/fr') }}">🇫🇷 Français</a></li>
+                        <li><a class="dropdown-item" href="{{ url('locale/sw') }}">🇰🇪 Kiswahili</a></li>
+                    </ul>
+                </li>
 
-                    <div class="collapse navbar-collapse" id="navbarScroll">
-                        <ul class="navbar-nav me-auto mb-2 mb-lg-0 navbar-nav-scroll">
-                            <li class="nav-item">
-                                <a class="nav-link active text-dark" href="#">Dashboard</a>
-                            </li>
+                <!-- Auth / Roles -->
+                @auth
+                    <li class="nav-item">
+                        <a class="nav-link text-dark" href="{{ route('dashboard') }}">
+                            Dashboard ({{ Auth::user()->roles->first()->name ?? 'User' }})
+                        </a>
+                    </li>
+                @endauth
+            </ul>
 
-                            <!-- Language Switcher -->
-                            <li class="nav-item dropdown">
-                                <a class="nav-link dropdown-toggle text-dark" href="#" id="languageDropdown"
-                                    role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    🌍 {{ strtoupper(app()->getLocale()) }}
-                                </a>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="{{ url('locale/en') }}">🇬🇧 English</a></li>
-                                    <li><a class="dropdown-item" href="{{ url('locale/fr') }}">🇫🇷 Français</a></li>
-                                    <li><a class="dropdown-item" href="{{ url('locale/sw') }}">🇰🇪 Kiswahili</a></li>
-                                </ul>
-                            </li>
-                        </ul>
-
-                        <form class="d-flex" role="search">
-                            <input class="form-control me-2" type="search" placeholder="Search dashboard..."
-                                aria-label="Search" />
-                            <button class="btn btn-outline-success" type="submit">Search</button>
-                        </form>
-                    </div>
-                </div>
-            </nav>
-
-
-            <!-- Global Search -->
-            <form class="d-flex" method="GET" action="{{ route('dashboard.search') }}">
-                <input class="form-control me-2" type="search" name="q" placeholder="Search dashboard..."
-                    aria-label="Search">
+            <!-- Search -->
+            <form class="d-flex ms-2" method="GET" action="{{ route('dashboard.search') }}">
+                <input class="form-control me-2" type="search" name="q" placeholder="Search..." aria-label="Search">
                 <button class="btn btn-success" type="submit">Search</button>
             </form>
         </div>

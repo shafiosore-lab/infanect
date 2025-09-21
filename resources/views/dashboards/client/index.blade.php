@@ -1,7 +1,12 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="client-dashboard">
+<div class="flex min-h-screen">
+    <aside class="w-64 bg-gray-800 text-white p-4 hidden md:block">
+        @include('layouts.partials.user-sidebar')
+    </aside>
+    <main class="flex-1">
+<div class="client-dashboard p-4 md:ml-0">
     {{-- Welcome Header --}}
     <div class="welcome-section mb-4">
         <div class="row align-items-center">
@@ -291,6 +296,8 @@
         </div>
     </div>
 </div>
+    </main>
+</div>
 
 <style>
 .client-dashboard .progress-card {
@@ -328,48 +335,48 @@
 </style>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Mood Trend Chart
-    const moodCtx = document.getElementById('moodTrendChart');
-    if (moodCtx) {
-        new Chart(moodCtx.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                datasets: [{
-                    label: 'Mood Score',
-                    data: {!! json_encode($wellnessProgress['moodTrend']) !!},
-                    borderColor: '#4A90E2',
-                    backgroundColor: 'rgba(74, 144, 226, 0.1)',
-                    tension: 0.4,
-                    fill: true,
-                    pointBackgroundColor: '#4A90E2',
-                    pointBorderColor: '#fff',
-                    pointBorderWidth: 2,
-                    pointRadius: 4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Mood Trend Chart
+        const moodCtx = document.getElementById('moodTrendChart');
+        if (moodCtx) {
+            new Chart(moodCtx.getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Mood Score',
+                        data: {!! json_encode($wellnessProgress['moodTrend']) !!},
+                        borderColor: '#4A90E2',
+                        backgroundColor: 'rgba(74, 144, 226, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#4A90E2',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 10,
-                        grid: { color: 'rgba(0,0,0,0.05)' },
-                        ticks: { color: '#666' }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
                     },
-                    x: {
-                        grid: { display: false },
-                        ticks: { color: '#666' }
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 10,
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            ticks: { color: '#666' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: '#666' }
+                        }
                     }
                 }
-            }
-        });
-    }
-});
+            });
+        }
+    });
 </script>
 @endsection

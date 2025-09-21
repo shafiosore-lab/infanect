@@ -9,6 +9,7 @@ use App\Models\Service;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 
 class UserBookingController extends Controller
 {
@@ -18,12 +19,11 @@ class UserBookingController extends Controller
     public function index(Request $request)
     {
         $user = Auth::user();
-        if (! $user) {
+        if (!$user) {
             return redirect()->route('login');
         }
 
-        // If bookings table doesn't exist, return empty collection to the view
-        if (! Schema::hasTable('bookings')) {
+        if (!Schema::hasTable('bookings')) {
             return view('bookings.index', ['bookings' => collect()]);
         }
 
@@ -32,31 +32,32 @@ class UserBookingController extends Controller
             'sort' => 'nullable|string'
         ]);
 
-        $perPage = 15;
+        $perPage   = 15;
+        $sort      = $request->get('sort', 'created_at');
+        $direction = $request->get('direction', 'desc');
 
-        // Prefer Eloquent model if it exists
-        if (class_exists(\App\Models\Booking::class)) {
-            try {
-                $query = \App\Models\Booking::query()->where('user_id', $user->id)->orderBy('created_at', 'desc');
+        try {
+            if (class_exists(\App\Models\Booking::class)) {
+                $query = Booking::query()
+                    ->where('user_id', $user->id)
+                    ->orderBy($sort, $direction);
 
-                // eager load common relations if they exist
                 $with = [];
-                if (method_exists(\App\Models\Booking::class, 'service')) $with[] = 'service';
-                if (method_exists(\App\Models\Booking::class, 'provider')) $with[] = 'provider';
-                if (! empty($with)) $query->with($with);
+                if (method_exists(Booking::class, 'service')) $with[] = 'service';
+                if (method_exists(Booking::class, 'provider')) $with[] = 'provider';
+                if (method_exists(Booking::class, 'activity')) $with[] = 'activity';
+                if (!empty($with)) $query->with($with);
 
                 $bookings = $query->paginate($perPage);
-            } catch (\Throwable $e) {
-                // fallback to query builder
-                $bookings = DB::table('bookings')->where('user_id', $user->id)->orderBy('created_at', 'desc')->paginate($perPage);
+            } else {
+                $bookings = DB::table('bookings')
+                    ->where('user_id', $user->id)
+                    ->orderBy($sort, $direction)
+                    ->paginate($perPage);
             }
-        } else {
-            // fallback to query builder
-            try {
-                $bookings = DB::table('bookings')->where('user_id', $user->id)->orderBy('created_at', 'desc')->paginate($perPage);
-            } catch (\Throwable $e) {
-                $bookings = collect();
-            }
+        } catch (\Throwable $e) {
+            Log::error('Error fetching bookings', ['error' => $e->getMessage()]);
+            $bookings = collect();
         }
 
         return view('bookings.index', compact('bookings'));
@@ -81,23 +82,23 @@ class UserBookingController extends Controller
 
         if ($activity) {
             $existingBooking = Booking::where('user_id', $user->id)
-                                      ->where('activity_id', $activity->id)
-                                      ->first();
+                ->where('activity_id', $activity->id)
+                ->first();
 
             if ($existingBooking) {
                 return redirect()->route('bookings.show', $existingBooking)
-                                 ->with('info', 'You have already booked this activity.');
+                    ->with('info', 'You have already booked this activity.');
             }
 
             return view('bookings.create', compact('activity'));
         }
 
         $availableActivities = Activity::upcoming()
-                                       ->with('provider')
-                                       ->whereDoesntHave('bookings', function ($q) use ($user) {
-                                           $q->where('user_id', $user->id);
-                                       })
-                                       ->paginate(12);
+            ->with('provider')
+            ->whereDoesntHave('bookings', function ($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })
+            ->paginate(12);
 
         return view('bookings.create', compact('availableActivities'));
     }
@@ -110,12 +111,12 @@ class UserBookingController extends Controller
         $user = auth()->user();
 
         $existingBooking = Booking::where('user_id', $user->id)
-                                  ->where('service_id', $service->id)
-                                  ->first();
+            ->where('service_id', $service->id)
+            ->first();
 
         if ($existingBooking) {
             return redirect()->route('bookings.show', $existingBooking)
-                             ->with('info', 'You have already booked this service.');
+                ->with('info', 'You have already booked this service.');
         }
 
         return view('bookings.create-service', compact('service'));
@@ -140,16 +141,14 @@ class UserBookingController extends Controller
             'notes' => 'nullable|string|max:500',
         ]);
 
-        // Ensure either activity_id or service_id is provided
         if (!$request->activity_id && !$request->service_id) {
-            return response()->json([
+            return $this->jsonOrRedirect($request, [
                 'success' => false,
                 'message' => 'Either activity or service must be specified.'
             ], 422);
         }
 
         $user = auth()->user();
-
         $activity = null;
         $service = null;
         $providerId = null;
@@ -167,7 +166,6 @@ class UserBookingController extends Controller
 
         $participants = $request->participants ?? 1;
 
-        // Check for existing booking
         $existingQuery = Booking::where('user_id', $user->id);
         if ($activity) {
             $existingQuery->where('activity_id', $activity->id);
@@ -176,52 +174,64 @@ class UserBookingController extends Controller
         }
 
         if ($existingQuery->exists()) {
-            return response()->json([
+            return $this->jsonOrRedirect($request, [
                 'success' => false,
                 'message' => 'You have already booked this ' . ($activity ? 'activity' : 'service') . '.'
             ], 409);
         }
 
-        // Check availability for activities
-        if ($activity && $participants > $activity->availableSlots()) {
-            return response()->json([
+        if ($activity && method_exists($activity, 'availableSlots') &&
+            $participants > $activity->availableSlots()) {
+            return $this->jsonOrRedirect($request, [
                 'success' => false,
                 'message' => 'Not enough slots available for ' . $participants . ' participants.'
             ], 422);
         }
 
-        // Calculate total amount
+        // Ensure base prices are in KES, convert if needed
         $rates = ['KES'=>1,'USD'=>0.0072,'EUR'=>0.0065,'GBP'=>0.0056];
         $currency = $request->currency;
         $totalAmount = $price * $participants * ($rates[$currency] ?? 1);
 
         $transactionId = 'PAY' . time();
 
-        $booking = Booking::create([
-            'user_id' => $user->id,
-            'activity_id' => $activity ? $activity->id : null,
-            'service_id' => $service ? $service->id : null,
-            'provider_id' => $providerId,
-            'amount' => $totalAmount,
-            'amount_paid' => 0,
-            'currency_code' => $currency,
-            'status' => 'pending',
-            'scheduled_at' => $activity ? $activity->datetime : now(),
-            'customer_name' => $request->customer_name,
-            'customer_email' => $request->customer_email,
-            'customer_phone' => $request->customer_phone,
-            'participants' => $participants,
-            'payment_method' => $request->payment_method,
-            'transaction_id' => $transactionId,
-            'notes' => $request->notes,
-        ]);
+        DB::beginTransaction();
+        try {
+            $booking = Booking::create([
+                'user_id' => $user->id,
+                'activity_id' => $activity ? $activity->id : null,
+                'service_id' => $service ? $service->id : null,
+                'provider_id' => $providerId,
+                'amount' => $totalAmount,
+                'amount_paid' => 0,
+                'currency_code' => $currency,
+                'status' => 'pending',
+                'scheduled_at' => $activity ? $activity->datetime : now(),
+                'customer_name' => $request->customer_name,
+                'customer_email' => $request->customer_email,
+                'customer_phone' => $request->customer_phone,
+                'participants' => $participants,
+                'payment_method' => $request->payment_method,
+                'transaction_id' => $transactionId,
+                'notes' => $request->notes,
+            ]);
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Booking created successfully!',
-            'booking' => $booking,
-            'redirect' => route('payments.confirm', $booking->id)
-        ]);
+            DB::commit();
+
+            return $this->jsonOrRedirect($request, [
+                'success' => true,
+                'message' => 'Booking created successfully!',
+                'booking' => $booking,
+                'redirect' => route('payments.confirm', $booking->id)
+            ]);
+        } catch (\Exception $e) {
+            DB::rollback();
+            Log::error('Booking creation failed', ['error' => $e->getMessage()]);
+            return $this->jsonOrRedirect($request, [
+                'success' => false,
+                'message' => 'Booking failed, please try again later.'
+            ], 500);
+        }
     }
 
     /**
@@ -232,7 +242,7 @@ class UserBookingController extends Controller
         $this->authorizeBooking($booking);
 
         if ($booking->status === 'completed' || ($booking->scheduled_at && $booking->scheduled_at->isPast())) {
-            return response()->json([
+            return $this->jsonOrRedirect($request, [
                 'success' => false,
                 'message' => 'Cannot cancel this booking.'
             ], 422);
@@ -240,7 +250,7 @@ class UserBookingController extends Controller
 
         $booking->update(['status' => 'cancelled']);
 
-        return response()->json([
+        return $this->jsonOrRedirect($request, [
             'success' => true,
             'message' => 'Booking cancelled successfully.',
             'booking' => $booking
@@ -255,5 +265,22 @@ class UserBookingController extends Controller
         if ($booking->user_id !== auth()->id()) {
             abort(403, 'Unauthorized action.');
         }
+    }
+
+    /**
+     * Decide response format (JSON for API, redirect/flash for web).
+     */
+    protected function jsonOrRedirect(Request $request, array $data, int $status = 200)
+    {
+        if ($request->wantsJson()) {
+            return response()->json($data, $status);
+        }
+
+        if ($status >= 400) {
+            return redirect()->back()->withErrors($data['message'] ?? 'Something went wrong.');
+        }
+
+        return redirect($data['redirect'] ?? route('bookings.index'))
+            ->with('success', $data['message'] ?? 'Success.');
     }
 }

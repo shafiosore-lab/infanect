@@ -58,6 +58,7 @@ class Booking extends Model
         'scheduled_at'  => 'datetime',
         'metadata'      => 'array',
         'is_returning'  => 'boolean',
+        'amount'        => 'decimal:2',
     ];
 
     protected $dates = [
@@ -93,6 +94,16 @@ class Booking extends Model
     public function client()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function transactions()
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    public function review()
+    {
+        return $this->hasOne(Review::class);
     }
 
     /**
@@ -140,6 +151,38 @@ class Booking extends Model
         return $query->where('tenant_id', $tenantId);
     }
 
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    public function scopeConfirmed($query)
+    {
+        return $query->where('status', 'confirmed');
+    }
+
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', 'completed');
+    }
+
+    public function scopeUpcoming($query)
+    {
+        return $query->where('booking_date', '>=', now())
+            ->whereIn('status', ['confirmed', 'pending']);
+    }
+
+    public function scopeToday($query)
+    {
+        return $query->whereDate('booking_date', today());
+    }
+
+    public function scopeThisMonth($query)
+    {
+        return $query->whereMonth('booking_date', now()->month)
+            ->whereYear('booking_date', now()->year);
+    }
+
     /**
      * ⚡ Helpers
      */
@@ -161,5 +204,23 @@ class Booking extends Model
     public function formattedAmountPaid(): string
     {
         return number_format($this->amount_paid, 2) . ' ' . $this->currency_code;
+    }
+
+    // Accessors
+    public function getFormattedAmountAttribute()
+    {
+        return 'KSh ' . number_format($this->amount, 0);
+    }
+
+    public function getStatusBadgeAttribute()
+    {
+        $badges = [
+            'pending' => 'bg-yellow-100 text-yellow-800',
+            'confirmed' => 'bg-blue-100 text-blue-800',
+            'completed' => 'bg-green-100 text-green-800',
+            'cancelled' => 'bg-red-100 text-red-800',
+        ];
+
+        return $badges[$this->status] ?? 'bg-gray-100 text-gray-800';
     }
 }

@@ -396,80 +396,80 @@
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Revenue Chart
-    const revenueCtx = document.getElementById('revenueChart');
-    if (revenueCtx) {
-        new Chart(revenueCtx, {
-            type: 'line',
-            data: {
-                labels: @json($chartData['revenue']['labels'] ?? []),
-                datasets: [{
-                    label: 'Revenue',
-                    data: @json($chartData['revenue']['data'] ?? []),
-                    borderColor: '#0d6efd',
-                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, ticks: { callback: value => '$' + value } }
+    document.addEventListener('DOMContentLoaded', function() {
+        // Revenue Chart
+        const revenueCtx = document.getElementById('revenueChart');
+        if (revenueCtx) {
+            new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: @json($chartData['revenue']['labels'] ?? []),
+                    datasets: [{
+                        label: 'Revenue',
+                        data: @json($chartData['revenue']['data'] ?? []),
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { callback: value => '$' + value } }
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
 
-    // Mood Chart
-    const moodCtx = document.getElementById('moodChart');
-    if (moodCtx) {
-        new Chart(moodCtx, {
-            type: 'doughnut',
-            data: {
-                labels: @json($chartData['mood']['labels'] ?? []),
-                datasets: [{
-                    data: @json($chartData['mood']['data'] ?? []),
-                    backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6c757d']
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom' } }
-            }
-        });
-    }
-
-    // Mini trend charts
-    document.querySelectorAll('.trend-chart').forEach(canvas => {
-        const values = JSON.parse(canvas.dataset.values || '[]');
-        new Chart(canvas, {
-            type: 'line',
-            data: {
-                labels: Array(values.length).fill(''),
-                datasets: [{
-                    data: values,
-                    borderColor: '#0d6efd',
-                    borderWidth: 1,
-                    fill: false,
-                    pointRadius: 0
-                }]
-            },
-            options: {
-                responsive: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    x: { display: false },
-                    y: { display: false }
+        // Mood Chart
+        const moodCtx = document.getElementById('moodChart');
+        if (moodCtx) {
+            new Chart(moodCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: @json($chartData['mood']['labels'] ?? []),
+                    datasets: [{
+                        data: @json($chartData['mood']['data'] ?? []),
+                        backgroundColor: ['#28a745', '#ffc107', '#dc3545', '#17a2b8', '#6c757d']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } }
                 }
-            }
+            });
+        }
+
+        // Mini trend charts
+        document.querySelectorAll('.trend-chart').forEach(canvas => {
+            const values = JSON.parse(canvas.dataset.values || '[]');
+            new Chart(canvas, {
+                type: 'line',
+                data: {
+                    labels: Array(values.length).fill(''),
+                    datasets: [{
+                        data: values,
+                        borderColor: '#0d6efd',
+                        borderWidth: 1,
+                        fill: false,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { display: false },
+                        y: { display: false }
+                    }
+                }
+            });
         });
     });
-});
 
 // Booking actions
 function confirmBooking(bookingId) {

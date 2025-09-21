@@ -3,6 +3,18 @@
 @section('title', 'Provider Dashboard')
 
 @section('content')
+@php
+    // Ensure $provider is always defined to avoid undefined variable error
+    if (!isset($provider)) {
+        $provider = \App\Models\Provider::where('user_id', auth()->id())->first();
+    }
+@endphp
+
+<div class="flex min-h-screen">
+    <aside class="w-64 bg-white shadow-lg p-4 hidden md:block">
+        @include('layouts.partials.provider-sidebar')
+    </aside>
+    <main class="flex-1">
 <div class="container mx-auto p-6">
     <!-- Welcome Header -->
     <div class="mb-8">
@@ -101,5 +113,7 @@
 
     <!-- The rest of your content (Recent Activities, Pending Approvals, Quick Actions, Provider Info) -->
     {{-- Make sure to use safe null checks like $provider->name ?? '' and $activity->title ?? '' to prevent array/object errors --}}
+</div>
+    </main>
 </div>
 @endsection

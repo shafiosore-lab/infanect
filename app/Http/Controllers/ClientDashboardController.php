@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use App\Models\User;
+use App\Models\Booking;
 
 class ClientDashboardController extends Controller
 {
@@ -12,45 +15,51 @@ class ClientDashboardController extends Controller
     {
         $user = Auth::user();
 
-        return view('dashboards.client.index', [
+        // Cache client dashboard data for better performance
+        $dashboardData = Cache::remember("client_dashboard_{$user->id}", 300, function () use ($user) {
+            return [
+                'metrics' => $this->getClientMetrics($user),
+                'upcomingBookings' => $this->getUpcomingBookings($user),
+                'recentActivities' => $this->getRecentActivities($user),
+                'recommendations' => $this->getRecommendations($user),
+                'wellnessProgress' => $this->getWellnessProgress($user),
+                'favoriteProviders' => $this->getFavoriteProviders($user),
+                'achievementBadges' => $this->getAchievementBadges($user),
+                'communityHighlights' => $this->getCommunityHighlights($user),
+            ];
+        });
+
+        return view('dashboards.client.index', array_merge([
             'userRole' => 'client',
             'user' => $user,
-            'metrics' => $this->getClientMetrics($user),
-            'upcomingBookings' => $this->getUpcomingBookings($user),
-            'recentActivities' => $this->getRecentActivities($user),
-            'recommendations' => $this->getRecommendations($user),
-            'wellnessProgress' => $this->getWellnessProgress($user),
-            'favoriteProviders' => $this->getFavoriteProviders($user),
-            'achievementBadges' => $this->getAchievementBadges($user),
-            'communityHighlights' => $this->getCommunityHighlights($user)
-        ]);
+        ], $dashboardData));
     }
 
     private function getClientMetrics($user)
     {
         try {
+            $bookings = $user->bookings();
+
             return [
-                'totalBookings' => DB::table('bookings')->where('client_id', $user->id)->count(),
-                'completedSessions' => DB::table('bookings')
-                    ->where('client_id', $user->id)
-                    ->where('status', 'completed')
-                    ->count(),
-                'upcomingSessions' => DB::table('bookings')
-                    ->where('client_id', $user->id)
-                    ->where('status', 'confirmed')
+                'totalBookings' => $bookings->count(),
+                'completedSessions' => $bookings->completed()->count(),
+                'upcomingSessions' => $bookings->confirmed()
                     ->where('booking_date', '>=', now())
                     ->count(),
-                'totalSpent' => DB::table('bookings')
-                    ->where('client_id', $user->id)
-                    ->where('status', 'completed')
-                    ->sum('amount') ?? 0
+                'totalSpent' => $bookings->completed()->sum('amount') ?? 0,
+                'thisMonthSessions' => $bookings->completed()
+                    ->whereMonth('booking_date', now()->month)
+                    ->count(),
+                'averageRating' => $user->reviews()->avg('rating') ?? 0,
             ];
         } catch (\Throwable $e) {
             return [
                 'totalBookings' => 0,
                 'completedSessions' => 0,
                 'upcomingSessions' => 0,
-                'totalSpent' => 0
+                'totalSpent' => 0,
+                'thisMonthSessions' => 0,
+                'averageRating' => 0,
             ];
         }
     }
@@ -58,16 +67,27 @@ class ClientDashboardController extends Controller
     private function getUpcomingBookings($user)
     {
         try {
-            return DB::table('bookings')
-                ->where('client_id', $user->id)
+            return $user->bookings()
+                ->with(['provider:id,name', 'activity:id,title'])
                 ->where('booking_date', '>=', now())
+                ->confirmed()
                 ->orderBy('booking_date')
                 ->limit(3)
-                ->get();
+                ->get()
+                ->map(function ($booking) {
+                    return [
+                        'id' => $booking->id,
+                        'service_name' => $booking->activity->title ?? 'Session with ' . $booking->provider->name,
+                        'provider_name' => $booking->provider->name ?? 'Provider',
+                        'booking_date' => $booking->booking_date,
+                        'amount' => $booking->formatted_amount,
+                        'status' => $booking->status,
+                    ];
+                });
         } catch (\Throwable $e) {
             return collect([
-                (object)['name' => 'Parenting Workshop', 'date' => now()->addDays(2)],
-                (object)['name' => 'Child Development Talk', 'date' => now()->addDays(5)],
+                ['service_name' => 'Family Cooking Workshop', 'provider_name' => 'Sarah', 'booking_date' => now()->addDays(2), 'status' => 'confirmed', 'amount' => 'KSh 1,500'],
+                ['service_name' => 'Nature Walk & Picnic', 'provider_name' => 'John', 'booking_date' => now()->addDays(5), 'status' => 'confirmed', 'amount' => 'KSh 1,200'],
             ]);
         }
     }
@@ -75,15 +95,15 @@ class ClientDashboardController extends Controller
     private function getRecentActivities($user)
     {
         try {
-            return DB::table('activities')
+            return DB::table('bookings')
                 ->where('user_id', $user->id)
                 ->orderBy('created_at', 'desc')
                 ->limit(5)
                 ->get();
         } catch (\Throwable $e) {
             return collect([
-                (object)['name' => 'Parenting Workshop', 'date' => now()->subDays(5)],
-                (object)['name' => 'Child Development Talk', 'date' => now()->subDays(7)],
+                (object)['service_name' => 'Completed Session', 'created_at' => now()->subDays(1), 'status' => 'completed'],
+                (object)['service_name' => 'Family Consultation', 'created_at' => now()->subDays(3), 'status' => 'completed'],
             ]);
         }
     }
@@ -93,26 +113,50 @@ class ClientDashboardController extends Controller
         return collect([
             'Consider booking a follow-up session',
             'Check out our new parenting resources',
-            'Join our community support group'
+            'Join our community support group',
+            'Complete your wellness assessment'
         ]);
     }
 
     private function getWellnessProgress($user)
     {
-        return [
-            'currentStreak' => 7,
-            'totalSessions' => 24,
-            'progressScore' => 85,
-            'weeklyGoal' => 3,
-            'completedThisWeek' => 2,
-            'moodTrend' => [7, 8, 6, 9, 8, 7, 8], // Last 7 days
-            'categories' => [
-                ['name' => 'Mental Health', 'progress' => 90, 'color' => '#4A90E2'],
-                ['name' => 'Physical Wellness', 'progress' => 75, 'color' => '#7ED321'],
-                ['name' => 'Family Bonding', 'progress' => 85, 'color' => '#F5A623'],
-                ['name' => 'Personal Growth', 'progress' => 70, 'color' => '#9013FE']
-            ]
-        ];
+        try {
+            // Get real mood data if available
+            $moodData = $user->moodSubmissions()->latest()->limit(7)->pluck('mood_score')->reverse()->values();
+
+            return [
+                'currentStreak' => $this->calculateStreak($user),
+                'totalSessions' => $user->bookings()->completed()->count(),
+                'progressScore' => $this->calculateProgressScore($user),
+                'weeklyGoal' => 2,
+                'completedThisWeek' => $user->bookings()
+                    ->completed()
+                    ->whereBetween('booking_date', [now()->startOfWeek(), now()->endOfWeek()])
+                    ->count(),
+                'moodTrend' => $moodData->count() >= 7 ? $moodData->toArray() : [6, 7, 8, 6, 7, 8, 7],
+                'categories' => [
+                    ['name' => 'Mental Wellness', 'progress' => 80, 'color' => '#4A90E2'],
+                    ['name' => 'Family Bonding', 'progress' => 70, 'color' => '#7ED321'],
+                    ['name' => 'Personal Growth', 'progress' => 65, 'color' => '#F5A623'],
+                    ['name' => 'Parenting Skills', 'progress' => 85, 'color' => '#9013FE'],
+                ],
+            ];
+        } catch (\Throwable $e) {
+            return [
+                'currentStreak' => 5,
+                'totalSessions' => 12,
+                'progressScore' => 75,
+                'weeklyGoal' => 2,
+                'completedThisWeek' => 1,
+                'moodTrend' => [6, 7, 8, 6, 7, 8, 7],
+                'categories' => [
+                    ['name' => 'Mental Wellness', 'progress' => 80, 'color' => '#4A90E2'],
+                    ['name' => 'Family Bonding', 'progress' => 70, 'color' => '#7ED321'],
+                    ['name' => 'Personal Growth', 'progress' => 65, 'color' => '#F5A623'],
+                    ['name' => 'Parenting Skills', 'progress' => 85, 'color' => '#9013FE'],
+                ],
+            ];
+        }
     }
 
     private function getFavoriteProviders($user)
@@ -123,7 +167,7 @@ class ClientDashboardController extends Controller
                 'name' => 'Dr. Sarah Wilson',
                 'specialty' => 'Child Psychology',
                 'rating' => 4.9,
-                'totalSessions' => 12,
+                'totalSessions' => 8,
                 'avatar' => 'SW',
                 'color' => '#4A90E2'
             ],
@@ -132,7 +176,7 @@ class ClientDashboardController extends Controller
                 'name' => 'Maria Rodriguez',
                 'specialty' => 'Family Therapy',
                 'rating' => 4.8,
-                'totalSessions' => 8,
+                'totalSessions' => 4,
                 'avatar' => 'MR',
                 'color' => '#7ED321'
             ],
@@ -184,5 +228,19 @@ class ClientDashboardController extends Controller
                 'author' => 'Events Team'
             ]
         ]);
+    }
+
+    private function calculateStreak($user)
+    {
+        // Calculate consecutive days of activity
+        return 5; // Mock for now
+    }
+
+    private function calculateProgressScore($user)
+    {
+        // Calculate overall progress based on sessions, mood, etc.
+        $sessions = $user->bookings()->completed()->count();
+        $reviews = $user->reviews()->count();
+        return min(100, ($sessions * 5) + ($reviews * 10));
     }
 }

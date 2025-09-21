@@ -3,53 +3,52 @@
 @section('title', 'Dashboard')
 
 @section('content')
-<section class="container overflow-x-auto pt-0 mt-0">
-    <div class="mx-auto p-4 space-y-6">
+<section class="container mx-auto px-4 pt-0 mt-0">
 
     <!-- Welcome Header -->
-    <header class="mb-4">
-        <h1 class="text-3xl font-bold text-gray-900">
-            Welcome back, {{ auth()->user()->name }}!
+    <header class="mb-8 text-center md:text-left">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight">
+            Welcome back, {{ auth()->user()->name }} 👋
         </h1>
-        <p class="mt-1 text-gray-600">Here's your activity overview</p>
+        <p class="mt-2 text-lg text-gray-600">Here’s your latest activity overview</p>
     </header>
 
-    <!-- User Metrics Dashboard -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- User Metrics -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         @include('dashboards.partials.metrics', ['stats' => $stats])
     </div>
 
-    <!-- Wellness Score Section -->
-    <div class="bg-white rounded-xl p-5 shadow-md">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Wellness Score</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="wellness-scores">
+    <!-- Wellness Score -->
+    <div class="bg-white rounded-2xl p-6 shadow-lg mb-8 border border-gray-100">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6">Wellness Score</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="wellness-scores">
             @include('dashboards.partials.wellness')
         </div>
     </div>
 
     <!-- Additional Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         @include('dashboards.partials.additional_stats', ['stats' => $stats])
     </div>
 
-    <!-- Tabs Section for Activities, Services, Providers, Bookings -->
-    <div x-data="{ tab: 'top-services' }">
-        <div class="flex space-x-4 border-b mb-4">
+    <!-- Tabs Section -->
+    <div x-data="{ tab: 'top-services' }" class="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 mb-8">
+        <div class="flex flex-wrap gap-4 border-b border-gray-200 mb-6">
             <button @click="tab='top-services'"
-                    :class="tab === 'top-services' ? 'border-b-2 border-blue-500 text-blue-600 font-semibold' : 'text-gray-500'"
-                    class="px-4 py-2 focus:outline-none">Top Services</button>
+                    :class="tab === 'top-services' ? 'border-b-2 border-blue-600 text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-2 transition">Top Services</button>
             <button @click="tab='recent-activity'"
-                    :class="tab === 'recent-activity' ? 'border-b-2 border-blue-500 text-blue-600 font-semibold' : 'text-gray-500'"
-                    class="px-4 py-2 focus:outline-none">Recent Activity</button>
+                    :class="tab === 'recent-activity' ? 'border-b-2 border-blue-600 text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-2 transition">Recent Activity</button>
             <button @click="tab='top-providers'"
-                    :class="tab === 'top-providers' ? 'border-b-2 border-blue-500 text-blue-600 font-semibold' : 'text-gray-500'"
-                    class="px-4 py-2 focus:outline-none">Top Providers</button>
+                    :class="tab === 'top-providers' ? 'border-b-2 border-blue-600 text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-2 transition">Top Providers</button>
             <button @click="tab='my-bookings'"
-                    :class="tab === 'my-bookings' ? 'border-b-2 border-blue-500 text-blue-600 font-semibold' : 'text-gray-500'"
-                    class="px-4 py-2 focus:outline-none">My Bookings</button>
+                    :class="tab === 'my-bookings' ? 'border-b-2 border-blue-600 text-blue-600 font-semibold' : 'text-gray-500 hover:text-gray-700'"
+                    class="px-4 py-2 transition">My Bookings</button>
         </div>
 
-        <div class="space-y-4">
+        <div class="space-y-6">
             <div x-show="tab === 'top-services'">
                 @include('dashboards.partials.top_services', ['topServices' => $topServices])
             </div>
@@ -65,27 +64,27 @@
         </div>
     </div>
 
-    <!-- Engagements Section -->
+    <!-- Engagements -->
     @if($engagements && count($engagements) > 0)
-    <section class="bg-white rounded-xl p-5 shadow-md">
-        <h2 class="text-xl font-semibold text-gray-800 mb-4">Recent Engagements</h2>
-        <div class="space-y-3">
+    <section class="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-6">Recent Engagements</h2>
+        <div class="space-y-4">
             @foreach($engagements as $engagement)
-            <div class="border rounded-lg p-3 hover:shadow-lg transition-shadow">
-                <h3 class="font-medium text-gray-900">{{ $engagement['title'] ?? 'Engagement' }}</h3>
-                <p class="text-sm text-gray-600 mt-1">{{ $engagement['description'] ?? '' }}</p>
-                <p class="text-xs text-gray-500 mt-2">{{ $engagement['date'] ?? now()->format('M d, Y') }}</p>
+            <div class="border rounded-xl p-4 hover:shadow-md transition bg-gray-50">
+                <h3 class="font-semibold text-gray-900">{{ $engagement['title'] ?? 'Engagement' }}</h3>
+                <p class="text-sm text-gray-600 mt-2">{{ $engagement['description'] ?? '' }}</p>
+                <p class="text-xs text-gray-500 mt-3">{{ $engagement['date'] ?? now()->format('M d, Y') }}</p>
             </div>
             @endforeach
         </div>
     </section>
     @endif
 
-</div>
+</section>
 
+<!-- Wellness Score Script -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Load wellness scores dynamically
     fetch('{{ route("dashboard.wellness") }}')
         .then(res => res.json())
         .then(scores => {
@@ -111,8 +110,4 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(err => console.error('Error fetching wellness scores:', err));
 });
 </script>
-
-</section>
-
-@endsection
 @endsection

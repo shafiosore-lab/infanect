@@ -2,45 +2,53 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Activity extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'provider_profile_id',
         'title',
         'description',
+        'type',
         'category',
-        'slots',
-        'images',
-        'is_approved',
+        'age_group',
+        'difficulty_level',
+        'max_participants',
         'price',
-        'currency',
         'duration_minutes',
-        'provider_id',
+        'start_date',
+        'end_date',
         'location',
-        'meta'
+        'status',
+        'created_by',
+        'provider_id',
+        'requirements',
+        'tags',
+        'is_active',
     ];
 
     protected $casts = [
-        'slots' => 'array',
-        'images' => 'array',
-        'datetime' => 'datetime',
-        'meta' => 'array',
-        'is_approved' => 'boolean',
+        'start_date' => 'datetime',
+        'end_date' => 'datetime',
+        'requirements' => 'array',
+        'tags' => 'array',
         'price' => 'decimal:2',
-        'slots' => 'integer',
+        'is_active' => 'boolean',
     ];
 
     // Relationships
-    public function provider(): BelongsTo
+    public function creator()
     {
-        return $this->belongsTo(Provider::class);
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function provider()
+    {
+        return $this->belongsTo(User::class, 'provider_id');
     }
 
     public function bookings()
@@ -48,58 +56,30 @@ class Activity extends Model
         return $this->hasMany(Booking::class);
     }
 
-    public function providerProfile()
+    // Scopes
+    public function scopeActive($query)
     {
-        return $this->belongsTo(ProviderProfile::class);
+        return $query->where('is_active', true)->where('status', 'published');
     }
 
-    // ======================
-    // Availability
-    // ======================
-
-    // Get available slots
-    public function availableSlots($includePending = true)
+    public function scopeByCategory($query, $category)
     {
-        $query = $this->bookings();
-        $query = $includePending
-            ? $query->whereIn('status', ['pending', 'confirmed'])
-            : $query->where('status', 'confirmed');
-
-        $booked = $query->sum('participants');
-        return max(0, $this->slots - $booked);
-    }
-
-    // ======================
-    // Query Scopes
-    // ======================
-
-    public function scopeUpcoming($query)
-    {
-        return $query->where('datetime', '>', now())->orderBy('datetime', 'asc');
-    }
-
-    public function scopeApproved($query)
-    {
-        return $query->where('is_approved', true);
-    }
-
-    public function scopeSearch($query, $term)
-    {
-        if (!$term) return $query;
-
-        return $query->where(function ($q) use ($term) {
-            $q->where('title', 'LIKE', "%{$term}%")
-              ->orWhere('category', 'LIKE', "%{$term}%")
-              ->orWhere('venue', 'LIKE', "%{$term}%")
-              ->orWhereHas('provider', function ($providerQuery) use ($term) {
-                  $providerQuery->where('name', 'LIKE', "%{$term}%");
-              });
-        });
+        return $query->where('category', $category);
     }
 
     public function scopeCategory($query, $category)
     {
         return $category ? $query->where('category', $category) : $query;
+    }
+
+    public function scopeByAgeGroup($query, $ageGroup)
+    {
+        return $query->where('age_group', $ageGroup);
+    }
+
+    public function scopeByProvider($query, $providerId)
+    {
+        return $query->where('provider_id', $providerId);
     }
 
     public function scopeLocation($query, $location)
@@ -128,9 +108,27 @@ class Activity extends Model
         });
     }
 
-    // ======================
+    // Accessors
+    public function getFormattedPriceAttribute()
+    {
+        return 'KSh ' . number_format($this->price, 0);
+    }
+
+    public function getFormattedDurationAttribute()
+    {
+        $hours = floor($this->duration_minutes / 60);
+        $minutes = $this->duration_minutes % 60;
+
+        if ($hours > 0 && $minutes > 0) {
+            return $hours . 'h ' . $minutes . 'm';
+        } elseif ($hours > 0) {
+            return $hours . 'h';
+        } else {
+            return $minutes . 'm';
+        }
+    }
+
     // Multi-Currency Conversion
-    // ======================
     public function priceIn($currency = 'KES')
     {
         $rates = [

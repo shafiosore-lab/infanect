@@ -43,20 +43,19 @@ class BaseComponent extends Component
             }
 
             if (is_array($value)) {
-                // Handle nested arrays safely
-                $stringifiedArray = array_map(function($v) {
-                    return $this->stringifyValue($v);
-                }, $value);
-                return implode(' ', array_filter($stringifiedArray));
+                // Flatten nested arrays and stringify
+                $flat = [];
+                array_walk_recursive($value, function($v) use (&$flat) {
+                    $flat[] = is_scalar($v) ? (string)$v : json_encode($v);
+                });
+                return implode(' ', $flat);
             }
 
             if (is_object($value)) {
-                // Enhanced object handling for Laravel models and common objects
                 if (method_exists($value, '__toString')) {
                     return (string) $value;
                 }
 
-                // Handle Laravel models
                 if (method_exists($value, 'getKey') && $value->getKey()) {
                     return (string) $value->getKey();
                 }
@@ -194,4 +193,5 @@ class BaseComponent extends Component
             return '';
         }
     }
+}
 }

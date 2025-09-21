@@ -2,38 +2,92 @@
 
 @section('content')
 @php
-    use App\Models\Provider;
-    use App\Models\Activity;
-    use App\Models\Booking;
     use Illuminate\Support\Facades\Cache;
+    use Illuminate\Support\Facades\DB;
+    use Illuminate\Support\Facades\Schema;
 
     // Get bonding provider data with caching for performance
     $cacheKey = 'bonding_provider_dashboard_' . auth()->id();
     $providerData = Cache::remember($cacheKey, 5 * 60, function () {
-        $provider = Provider::where('user_id', auth()->id())->first();
+        try {
+            // Check if tables exist before querying
+            $activitiesExist = Schema::hasTable('activities');
+            $bookingsExist = Schema::hasTable('bookings');
+            $providersExist = Schema::hasTable('providers');
 
-        if (!$provider) {
+            // Use direct DB queries with existence checks
+            $stats = [
+                'total_activities' => 0,
+                'pending_bookings' => 0,
+                'today_sessions' => 0,
+                'total_participants' => 0,
+            ];
+
+            if ($activitiesExist) {
+                try {
+                    $stats['total_activities'] = DB::table('activities')
+                        ->where('created_by', auth()->id())
+                        ->whereNull('deleted_at')
+                        ->count() ?: 0;
+
+                    $stats['today_sessions'] = DB::table('activities')
+                        ->where('created_by', auth()->id())
+                        ->whereDate('created_at', today())
+                        ->whereNull('deleted_at')
+                        ->count() ?: 0;
+                } catch (\Exception $e) {
+                    \Log::info('Activities table query failed: ' . $e->getMessage());
+                }
+            }
+
+            if ($bookingsExist) {
+                try {
+                    $stats['pending_bookings'] = DB::table('bookings')
+                        ->where('provider_id', auth()->id())
+                        ->where('status', 'pending')
+                        ->whereNull('deleted_at')
+                        ->count() ?: 0;
+
+                    $stats['total_participants'] = DB::table('bookings')
+                        ->where('provider_id', auth()->id())
+                        ->whereNull('deleted_at')
+                        ->count() ?: 0;
+                } catch (\Exception $e) {
+                    \Log::info('Bookings table query failed: ' . $e->getMessage());
+                }
+            }
+
+            // Check if provider exists in providers table
+            $provider = null;
+            if ($providersExist) {
+                try {
+                    $provider = DB::table('providers')->where('user_id', auth()->id())->first();
+                } catch (\Exception $e) {
+                    \Log::info('Providers table query failed: ' . $e->getMessage());
+                }
+            }
+
+            return [
+                'provider' => $provider,
+                'stats' => $stats,
+                'kyc_status' => $provider->kyc_status ?? 'not_registered',
+                'provider_type' => $provider->provider_type ?? 'provider-bonding'
+            ];
+        } catch (\Exception $e) {
+            // Fallback data if queries fail
+            \Log::warning('Provider dashboard query failed: ' . $e->getMessage());
             return [
                 'provider' => null,
-                'stats' => ['total_activities' => 0, 'pending_bookings' => 0, 'today_sessions' => 0, 'total_participants' => 0],
+                'stats' => [
+                    'total_activities' => 0,
+                    'pending_bookings' => 0,
+                    'today_sessions' => 0,
+                    'total_participants' => 0
+                ],
                 'kyc_status' => 'not_registered',
                 'provider_type' => 'provider-bonding'
             ];
         }
-
-        return [
-            'provider' => $provider,
-            'stats' => [
-                'total_activities' => Activity::where('provider_profile_id', $provider->id)->count() ?? 0,
-                'pending_bookings' => Booking::where('provider_id', $provider->id)->where('status', 'pending')->count() ?? 0,
-                'today_sessions' => Activity::where('provider_profile_id', $provider->id)->whereDate('start_date', today())->count() ?? 0,
-                'total_participants' => Booking::whereHas('activity', function($q) use ($provider) {
-                    $q->where('provider_profile_id', $provider->id);
-                })->count() ?? 0,
-            ],
-            'kyc_status' => $provider->kyc_status ?? 'pending',
-            'provider_type' => $provider->provider_type ?? 'provider-bonding'
-        ];
     });
 
     $isBonding = str_contains($providerData['provider_type'] ?? '', 'bonding');
@@ -49,7 +103,9 @@
                 </div>
                 <div class="ml-3">
                     <h3 class="font-bold text-gray-900">Bonding Provider</h3>
-                    <p class="text-sm text-gray-600">{{ Auth::user()->name }}</p>
+                    <p class="text-sm text-gray-600">
+                        {{ is_array(Auth::user()->name) ? implode(' ', Auth::user()->name) : (is_object(Auth::user()->name) ? (string) Auth::user()->name : Auth::user()->name) }}
+                    </p>
 
                     <!-- KYC Status Badge -->
                     @if($providerData['kyc_status'] === 'approved')
@@ -79,6 +135,12 @@
                         <i class="fas fa-tachometer-alt w-5 h-5 mr-3" aria-hidden="true"></i>
                         <span class="font-medium">Bonding Dashboard</span>
                     </a>
+                @else
+                    <a href="/dashboard/provider-bonding"
+                       class="flex items-center px-4 py-3 text-gray-700 rounded-lg hover:bg-green-50 hover:text-green-700 transition-colors {{ request()->is('dashboard/provider-bonding') ? 'bg-green-50 text-green-700 border-r-2 border-green-700' : '' }}">
+                        <i class="fas fa-tachometer-alt w-5 h-5 mr-3" aria-hidden="true"></i>
+                        <span class="font-medium">Bonding Dashboard</span>
+                    </a>
                 @endif
             </div>
 
@@ -90,23 +152,29 @@
                 @if(Route::has('activities.index'))
                     <a href="{{ route('activities.index') }}"
                        class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {{ request()->routeIs('activities.*') ? 'bg-gray-100 text-gray-900' : '' }}">
-                        <i class="fas fa-calendar-alt w-4 h-4 mr-3" aria-hidden="true"></i>
-                        My Activities
-                        @if($providerData['stats']['total_activities'] > 0)
-                            <span class="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                {{ $providerData['stats']['total_activities'] }}
-                            </span>
-                        @endif
-                    </a>
+                @else
+                    <a href="#"
+                       class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
                 @endif
+                    <i class="fas fa-calendar-alt w-4 h-4 mr-3" aria-hidden="true"></i>
+                    My Activities
+                    @if($providerData['stats']['total_activities'] > 0)
+                        <span class="ml-auto bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                            {{ $providerData['stats']['total_activities'] }}
+                        </span>
+                    @endif
+                </a>
 
                 @if(Route::has('activities.create'))
                     <a href="{{ route('activities.create') }}"
                        class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-plus w-4 h-4 mr-3" aria-hidden="true"></i>
-                        Create Activity
-                    </a>
+                @else
+                    <a href="#"
+                       class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
                 @endif
+                    <i class="fas fa-plus w-4 h-4 mr-3" aria-hidden="true"></i>
+                    Create Activity
+                </a>
 
                 <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
                     <i class="fas fa-users w-4 h-4 mr-3" aria-hidden="true"></i>
@@ -127,36 +195,58 @@
                 @if(Route::has('bookings.index'))
                     <a href="{{ route('bookings.index') }}"
                        class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors {{ request()->routeIs('bookings.*') ? 'bg-gray-100 text-gray-900' : '' }}">
-                        <i class="fas fa-users w-4 h-4 mr-3" aria-hidden="true"></i>
-                        All Participants
-                    </a>
-
-                    <a href="{{ route('bookings.index') }}?status=pending"
+                @else
+                    <a href="#"
                        class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-clock w-4 h-4 mr-3" aria-hidden="true"></i>
-                        Pending Registrations
-                        @if($providerData['stats']['pending_bookings'] > 0)
-                            <span class="ml-auto bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                {{ $providerData['stats']['pending_bookings'] }}
-                            </span>
-                        @endif
-                    </a>
-
-                    <a href="{{ route('bookings.index') }}?status=today"
-                       class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                        <i class="fas fa-calendar-day w-4 h-4 mr-3" aria-hidden="true"></i>
-                        Today's Activities
-                        @if($providerData['stats']['today_sessions'] > 0)
-                            <span class="ml-auto bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                {{ $providerData['stats']['today_sessions'] }}
-                            </span>
-                        @endif
-                    </a>
                 @endif
+                    <i class="fas fa-users w-4 h-4 mr-3" aria-hidden="true"></i>
+                    All Participants
+                </a>
 
-                <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
-                    <i class="fas fa-heart w-4 h-4 mr-3" aria-hidden="true"></i>
-                    Family Feedback
+                <a href="{{ route('bookings.index') }}?status=pending"
+                   class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                    <i class="fas fa-clock w-4 h-4 mr-3" aria-hidden="true"></i>
+                    Pending Registrations
+                    @if($providerData['stats']['pending_bookings'] > 0)
+                        <span class="ml-auto bg-yellow-100 text-yellow-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                            {{ $providerData['stats']['pending_bookings'] }}
+                        </span>
+                    @endif
+                </a>
+
+                <a href="{{ route('bookings.index') }}?status=today"
+                   class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                    <i class="fas fa-calendar-day w-4 h-4 mr-3" aria-hidden="true"></i>
+                    Today's Activities
+                    @if($providerData['stats']['today_sessions'] > 0)
+                        <span class="ml-auto bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                            {{ $providerData['stats']['today_sessions'] }}
+                        </span>
+                    @endif
+                </a>
+            </div>
+
+            <!-- AI Research Assistant -->
+            <div class="px-6 mb-2">
+                <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wide">AI Research Assistant</h4>
+            </div>
+            <div class="px-6 mb-6 space-y-1">
+                <a href="{{ route('ai.chat') }}" class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:text-blue-700 transition-all duration-200 border-l-2 border-transparent hover:border-blue-400">
+                    <i class="fas fa-brain w-4 h-4 mr-3 text-blue-600" aria-hidden="true"></i>
+                    Research Chat
+                    <span class="ml-auto bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                        AI
+                    </span>
+                </a>
+                @if($providerData['kyc_status'] === 'approved')
+                    <button onclick="openResearchUpload()" class="flex items-center w-full px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-blue-50 hover:text-blue-700 transition-colors text-left">
+                        <i class="fas fa-upload w-4 h-4 mr-3 text-blue-600" aria-hidden="true"></i>
+                        Upload Research
+                    </button>
+                @endif
+                <a href="/ai/documents" target="_blank" class="flex items-center px-4 py-2 text-sm text-gray-700 rounded-lg hover:bg-gray-100 transition-colors">
+                    <i class="fas fa-book-open w-4 h-4 mr-3" aria-hidden="true"></i>
+                    Research Library
                 </a>
             </div>
 
@@ -264,11 +354,13 @@
             <div class="flex items-center">
                 <div class="w-8 h-8 bg-green-300 rounded-full flex items-center justify-center">
                     <span class="text-sm font-medium text-green-700">
-                        {{ strtoupper(substr(Auth::user()->name, 0, 2)) }}
+                        {{ strtoupper(substr(is_array(Auth::user()->name) ? implode(' ', Auth::user()->name) : (is_object(Auth::user()->name) ? (string) Auth::user()->name : Auth::user()->name), 0, 2)) }}
                     </span>
                 </div>
                 <div class="ml-3 flex-1">
-                    <p class="text-sm font-medium text-gray-900">{{ Auth::user()->name }}</p>
+                    <p class="text-sm font-medium text-gray-900">
+                        {{ is_array(Auth::user()->name) ? implode(' ', Auth::user()->name) : (is_object(Auth::user()->name) ? (string) Auth::user()->name : Auth::user()->name) }}
+                    </p>
                     <p class="text-xs text-gray-500">Bonding Provider</p>
                 </div>
                 <form method="POST" action="{{ route('logout') }}">
@@ -297,6 +389,11 @@
                 <div class="flex items-center space-x-4">
                     <!-- Quick Actions -->
                     <div class="flex items-center space-x-2">
+                        <a href="{{ route('ai.chat') }}"
+                           class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 shadow-sm">
+                            <i class="fas fa-brain mr-2" aria-hidden="true"></i>
+                            AI Research
+                        </a>
                         @if(Route::has('activities.create'))
                             <a href="{{ route('activities.create') }}"
                                class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">
@@ -335,6 +432,38 @@
         </div>
     </main>
 </div>
+
+<!-- Research Upload Quick Modal -->
+@if($providerData['kyc_status'] === 'approved')
+<div id="research-upload-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20">
+        <div class="bg-white rounded-lg max-w-md w-full p-6">
+            <div class="flex items-center mb-4">
+                <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mr-3">
+                    <i class="fas fa-brain text-white"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-medium text-gray-900">Quick Research Upload</h3>
+                    <p class="text-sm text-gray-500">Share research with the AI assistant</p>
+                </div>
+            </div>
+
+            <div class="space-y-4">
+                <p class="text-gray-700">Ready to contribute to our research database? Upload peer-reviewed papers to enhance the AI assistant's knowledge base.</p>
+
+                <div class="flex space-x-3">
+                    <button onclick="closeResearchUpload()" class="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                    <a href="{{ route('ai.chat') }}" class="flex-1 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-md hover:from-blue-700 hover:to-purple-700 text-center">
+                        Go to AI Chat
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
 
 <!-- Bulk SMS Modal (Bonding-specific) -->
 <div id="bulkSMSModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden z-50" onclick="closeBulkSMS()">
@@ -393,16 +522,54 @@ function closeBulkSMS() {
 }
 
 // Character counter for SMS
-document.getElementById('sms_message').addEventListener('input', function() {
-    const count = this.value.length;
-    document.getElementById('sms_char_count').textContent = count;
+document.addEventListener('DOMContentLoaded', function() {
+    const smsMessage = document.getElementById('sms_message');
+    if (smsMessage) {
+        smsMessage.addEventListener('input', function() {
+            const count = this.value.length;
+            document.getElementById('sms_char_count').textContent = count;
 
-    // Change color when approaching limit
-    const counter = document.getElementById('sms_char_count');
-    if (count > 140) {
-        counter.classList.add('text-red-500');
-    } else {
-        counter.classList.remove('text-red-500');
+            // Change color when approaching limit
+            const counter = document.getElementById('sms_char_count');
+            if (count > 140) {
+                counter.classList.add('text-red-500');
+            } else {
+                counter.classList.remove('text-red-500');
+            }
+        });
+    }
+
+    // Form submission with CSRF
+    const bulkSMSForm = document.getElementById('bulkSMSForm');
+    if (bulkSMSForm) {
+        bulkSMSForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+
+            // Add CSRF token
+            formData.append('_token', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
+
+            // Send AJAX request with proper CSRF
+            fetch('/api/send-bulk-sms', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('SMS sent successfully:', data);
+                alert('Family notifications sent successfully!');
+                closeBulkSMS();
+            })
+            .catch(error => {
+                console.error('Error sending SMS:', error);
+                alert('Error sending notifications. Please try again.');
+            });
+        });
     }
 });
 
@@ -412,19 +579,15 @@ function toggleSidebar() {
     sidebar.classList.toggle('hidden');
 }
 
-// Form submission
-document.getElementById('bulkSMSForm').addEventListener('submit', function(e) {
-    e.preventDefault();
+@if($providerData['kyc_status'] === 'approved')
+function openResearchUpload() {
+    document.getElementById('research-upload-modal').classList.remove('hidden');
+}
 
-    const formData = new FormData(this);
-
-    // Here you would typically send the data to your backend
-    console.log('Sending SMS notification...', Object.fromEntries(formData));
-
-    // Show success message
-    alert('Family notifications sent successfully!');
-    closeBulkSMS();
-});
+function closeResearchUpload() {
+    document.getElementById('research-upload-modal').classList.add('hidden');
+}
+@endif
 </script>
 
 <style>
@@ -440,6 +603,13 @@ document.getElementById('bulkSMSForm').addEventListener('submit', function(e) {
 
 .transition-colors {
     transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+/* AI Assistant styling */
+.ai-gradient-hover:hover {
+    background: linear-gradient(135deg, #3B82F6, #8B5CF6);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 </style>
 @endsection

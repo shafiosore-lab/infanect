@@ -95,7 +95,7 @@ document.getElementById('accountTypeSelect')?.addEventListener('change', functio
     if(val === 'super-admin'){
         window.location.href = '{{ route('dashboard.super-admin') }}';
     } else if(val === 'provider'){
-        window.location.href = '{{ route('provider.dashboard') }}';
+        window.location.href = '{{ route('dashboard.provider') }}';
     } else {
         window.location.href = '{{ route('dashboard.client') }}';
     }

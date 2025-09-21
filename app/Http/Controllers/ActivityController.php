@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Str;
 use App\Models\Activity;
 use App\Models\Booking;
 use App\Models\Transaction;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class ActivityController extends Controller
 {
@@ -16,37 +19,49 @@ class ActivityController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Activity::query();
+        try {
+            $query = Activity::query()->active()->with(['creator', 'provider']);
 
-        // Apply filters
-        if ($request->filled('category')) {
-            $query->where('category', $request->category);
-        }
-        if ($request->filled('age_group')) {
-            $query->where('age_group', $request->age_group);
-        }
-        if ($request->filled('location')) {
-            $query->where('location', 'like', "%{$request->location}%");
-        }
-        if ($request->filled('search')) {
-            $query->where('name', 'like', "%{$request->search}%");
-        }
+            // Apply filters
+            if ($request->filled('category')) {
+                $query->byCategory($request->category);
+            }
 
-        $activities = $query->paginate(6);
+            if ($request->filled('age_group')) {
+                $query->byAgeGroup($request->age_group);
+            }
 
-        // Fallback to mock data if DB is empty
-        if ($activities->isEmpty()) {
-            $activities = $this->paginateCollection(
-                $this->generateActivities(),
-                6,
-                $request->get('page', 1)
+            if ($request->filled('difficulty_level')) {
+                $query->where('difficulty_level', $request->difficulty_level);
+            }
+
+            if ($request->filled('search')) {
+                $query->where(function ($q) use ($request) {
+                    $q->where('title', 'like', '%' . $request->search . '%')
+                      ->orWhere('description', 'like', '%' . $request->search . '%');
+                });
+            }
+
+            // Provider filter for dashboard
+            if (auth()->check() && auth()->user()->role === 'provider') {
+                $query->byProvider(auth()->id());
+            }
+
+            $activities = $query->orderBy('created_at', 'desc')->paginate(12);
+
+            return view('activities.index', compact('activities'));
+
+        } catch (\Exception $e) {
+            \Log::error('Activities index error: ' . $e->getMessage());
+
+            $activities = new \Illuminate\Pagination\LengthAwarePaginator(
+                collect([]), 0, 12, 1,
+                ['path' => request()->url(), 'pageName' => 'page']
             );
-        }
 
-        return view('activities.index', [
-            'activities' => $activities,
-            'filters'    => $this->getFilters(),
-        ]);
+            return view('activities.index', compact('activities'))
+                ->with('error', 'There was an issue loading activities. Please try again.');
+        }
     }
 
     /**
@@ -54,31 +69,19 @@ class ActivityController extends Controller
      */
     public function show($id)
     {
-        $activity = Activity::find($id);
+        $activity = Activity::with(['creator', 'provider', 'bookings'])->find($id);
 
         if (!$activity) {
-            $activity = collect($this->generateActivities())->firstWhere('id', $id);
-            if (!$activity) {
-                abort(404, 'Activity not found');
-            }
+            abort(404, 'Activity not found');
         }
 
-        $related = Activity::where('category', $activity->category)
+        $related = Activity::active()
+            ->where('category', $activity->category)
             ->where('id', '!=', $id)
             ->take(3)
             ->get();
 
-        if ($related->isEmpty()) {
-            $related = collect($this->generateActivities())
-                ->where('category', $activity->category)
-                ->where('id', '!=', $id)
-                ->take(3);
-        }
-
-        return view('activities.show', [
-            'activity'       => $activity,
-            'relatedActivities' => $related,
-        ]);
+        return view('activities.show', compact('activity', 'related'));
     }
 
     /**
@@ -92,28 +95,50 @@ class ActivityController extends Controller
             'participant_details' => 'nullable|string|max:1000',
         ]);
 
-        $activity = Activity::find($id);
-        if (!$activity) {
-            $activity = collect($this->generateActivities())->firstWhere('id', $id);
-            if (!$activity) {
-                abort(404, 'Activity not found');
-            }
+        if (!auth()->check()) {
+            return redirect()->route('login')->with('message', 'Please log in to make a booking.');
         }
 
-        $booking = [
-            'id'         => Str::uuid()->toString(),
-            'activity_id'=> $id,
-            'participants'=> $request->participants,
-            'date'       => $request->date,
-            'details'    => strip_tags($request->participant_details ?? ''),
-            'status'     => 'pending',
-            'reference'  => strtoupper(Str::random(10)),
-        ];
+        $activity = Activity::findOrFail($id);
 
-        Session::put('booking', $booking);
+        // Check availability (assumes participants stored as JSON { "count": x })
+        $existingBookings = Booking::where('activity_id', $activity->id)
+            ->whereDate('booking_date', $request->date)
+            ->where('status', '!=', 'cancelled')
+            ->sum(DB::raw("JSON_UNQUOTE(JSON_EXTRACT(participants, '$.count'))"));
 
-        return redirect()->route('activities.checkout', ['id' => $id])
-            ->with('success', 'Booking created successfully.');
+        if (($existingBookings + $request->participants) > $activity->max_participants) {
+            return back()->withErrors(['participants' => 'Not enough spots available for this date.']);
+        }
+
+        try {
+            $booking = Booking::create([
+                'user_id' => auth()->id(),
+                'activity_id' => $activity->id,
+                'provider_id' => $activity->provider_id ?? $activity->created_by,
+                'service_type' => $activity->type ?? 'bonding',
+                'booking_date' => $request->date,
+                'duration' => $activity->duration_minutes,
+                'status' => 'pending',
+                'amount' => $activity->price * $request->participants,
+                'notes' => $request->participant_details,
+                'participants' => ['count' => $request->participants],
+                'reference' => 'BK-' . strtoupper(Str::random(8)),
+            ]);
+
+            Session::put('booking', [
+                'id' => $booking->id,
+                'reference' => $booking->reference,
+                'amount' => $booking->amount,
+            ]);
+
+            return redirect()->route('activities.checkout', ['id' => $id])
+                ->with('success', 'Booking created successfully.');
+
+        } catch (\Exception $e) {
+            \Log::error('Booking creation failed: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Failed to create booking. Please try again.']);
+        }
     }
 
     /**
@@ -121,17 +146,17 @@ class ActivityController extends Controller
      */
     public function checkout($id)
     {
-        $booking = Session::get('booking');
-        if (!$booking || $booking['activity_id'] != $id) {
-            return redirect()->route('activities.index')->withErrors('No active booking found.');
+        $sessionBooking = Session::get('booking');
+        if (!$sessionBooking) {
+            return redirect()->route('activities.show', $id)->withErrors('No active booking found.');
         }
 
-        $activity = Activity::find($id);
-        if (!$activity) {
-            $activity = collect($this->generateActivities())->firstWhere('id', $id);
+        $booking = Booking::with(['activity', 'user'])->find($sessionBooking['id']);
+        if (!$booking || $booking->activity_id != $id) {
+            return redirect()->route('activities.show', $id)->withErrors('Invalid booking session.');
         }
 
-        return view('activities.checkout', compact('booking', 'activity'));
+        return view('activities.checkout', compact('booking'));
     }
 
     /**
@@ -139,107 +164,100 @@ class ActivityController extends Controller
      */
     public function processPayment(Request $request, $id)
     {
-        $booking = Session::get('booking');
-        if (!$booking || $booking['activity_id'] != $id) {
-            return redirect()->route('activities.index')->withErrors('No active booking found.');
+        $sessionBooking = Session::get('booking');
+        if (!$sessionBooking) {
+            return redirect()->route('activities.show', $id)->withErrors('No active booking found.');
         }
 
-        // Simulate payment success
-        $transaction = [
-            'id'        => Str::uuid()->toString(),
-            'reference' => $booking['reference'],
-            'amount'    => 100, // Placeholder, replace with activity price
-            'status'    => 'success',
-        ];
+        $booking = Booking::findOrFail($sessionBooking['id']);
 
-        Session::forget('booking');
+        try {
+            $transaction = Transaction::create([
+                'user_id' => auth()->id(),
+                'booking_id' => $booking->id,
+                'reference' => 'TX-' . strtoupper(Str::random(10)),
+                'amount' => $booking->amount,
+                'status' => 'success',
+                'payment_method' => 'mock_payment',
+                'gateway_response' => [
+                    'mock' => true,
+                    'processed_at' => now()->toISOString(),
+                    'reference' => $booking->reference,
+                ]
+            ]);
 
-        return redirect()->route('activities.index')->with('success', 'Payment successful! Booking confirmed.');
+            $booking->update(['status' => 'confirmed']);
+            Session::forget('booking');
+
+            return redirect()->route('activities.index')
+                ->with('success', 'Payment successful! Your booking has been confirmed. Reference: ' . $booking->reference);
+
+        } catch (\Exception $e) {
+            \Log::error('Payment processing failed: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Payment processing failed. Please try again.']);
+        }
     }
 
     /**
-     * Mock generator (fallback).
+     * Show the form for creating a new activity.
      */
-    private function generateActivities()
+    public function create()
     {
-        return [
-            [
-                'id' => 1,
-                'name' => 'Mindful Storytelling',
-                'category' => 'Storytelling',
-                'age_group' => '5-8',
-                'location' => 'Nairobi',
-                'price' => 20,
-                'duration' => '1h',
-                'image' => '/images/storytelling.jpg',
-                'includes' => 'Guided storytelling session, workbook',
-                'requirements' => 'Notebook, pen',
-            ],
-            [
-                'id' => 2,
-                'name' => 'Creative Art Therapy',
-                'category' => 'Art',
-                'age_group' => '8-12',
-                'location' => 'Mombasa',
-                'price' => 25,
-                'duration' => '1.5h',
-                'image' => '/images/art.jpg',
-                'includes' => 'Art supplies, guidance',
-                'requirements' => 'Old clothes for painting',
-            ],
-            [
-                'id' => 3,
-                'name' => 'Outdoor Mindfulness',
-                'category' => 'Wellness',
-                'age_group' => '12-16',
-                'location' => 'Kisumu',
-                'price' => 30,
-                'duration' => '2h',
-                'image' => '/images/mindfulness.jpg',
-                'includes' => 'Guided meditation, mats',
-                'requirements' => 'Comfortable clothing',
-            ],
-            [
-                'id' => 4,
-                'name' => 'Drama for Confidence',
-                'category' => 'Drama',
-                'age_group' => '10-14',
-                'location' => 'Eldoret',
-                'price' => 15,
-                'duration' => '1h',
-                'image' => '/images/drama.jpg',
-                'includes' => 'Role play activities',
-                'requirements' => 'Open mind, creativity',
-            ],
-        ];
+        if (!auth()->check() || auth()->user()->role !== 'provider') {
+            return redirect()->route('activities.index')
+                ->withErrors('Only providers can create activities.');
+        }
+
+        return view('activities.create');
     }
 
     /**
-     * Manual pagination for mock collection.
+     * Store a newly created activity in storage.
      */
-    private function paginateCollection($items, $perPage, $page)
+    public function store(Request $request)
     {
-        $collection = collect($items);
-        $offset = ($page * $perPage) - $perPage;
+        $request->validate([
+            'title' => 'required|string|max:255',
+            'description' => 'required|string|min:50',
+            'category' => 'required|string',
+            'age_group' => 'required|string',
+            'difficulty_level' => 'required|string',
+            'duration_minutes' => 'required|integer|min:15|max:480',
+            'max_participants' => 'required|integer|min:1|max:100',
+            'price' => 'required|numeric|min:0',
+            'location' => 'required|string|max:255',
+            'start_date' => 'required|date|after_or_equal:today',
+        ]);
 
-        return new \Illuminate\Pagination\LengthAwarePaginator(
-            $collection->slice($offset, $perPage)->values(),
-            $collection->count(),
-            $perPage,
-            $page,
-            ['path' => request()->url(), 'query' => request()->query()]
-        );
-    }
+        try {
+            $activity = Activity::create([
+                'title' => $request->title,
+                'description' => $request->description,
+                'type' => 'bonding',
+                'category' => $request->category,
+                'age_group' => $request->age_group,
+                'difficulty_level' => $request->difficulty_level,
+                'duration_minutes' => $request->duration_minutes,
+                'max_participants' => $request->max_participants,
+                'price' => $request->price,
+                'location' => $request->location,
+                'start_date' => $request->start_date,
+                'end_date' => Carbon::parse($request->start_date)->addMinutes($request->duration_minutes),
+                'status' => 'published',
+                'created_by' => auth()->id(),
+                'provider_id' => auth()->id(), // ⚡ adjust if you have a providers table
+                'requirements' => ['comfortable_clothes', 'positive_attitude'],
+                'tags' => ['family', 'bonding', $request->category],
+                'is_active' => true,
+            ]);
 
-    /**
-     * Static filter options.
-     */
-    private function getFilters()
-    {
-        return [
-            'categories' => ['Storytelling', 'Art', 'Wellness', 'Drama'],
-            'age_groups' => ['5-8', '8-12', '10-14', '12-16'],
-            'locations'  => ['Nairobi', 'Mombasa', 'Kisumu', 'Eldoret'],
-        ];
+            return redirect()->route('activities.index')
+                ->with('success', 'Activity "' . $activity->title . '" created successfully!');
+
+        } catch (\Exception $e) {
+            \Log::error('Activity creation failed: ' . $e->getMessage());
+            return back()->withInput()
+                ->withErrors(['error' => 'Failed to create activity. Please try again.']);
+        }
     }
 }

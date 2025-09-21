@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Carbon\Carbon;
 
 class Service extends Model
 {
@@ -11,6 +12,7 @@ class Service extends Model
 
     protected $fillable = [
         'provider_id',
+        'user_id',           // optional, if linked to a user
         'name',
         'category',
         'description',
@@ -20,15 +22,16 @@ class Service extends Model
         'availability',
         'attachments',
         'is_active',
-        'is_approved',     // Approval status
-        'image',           // Optional service image/banner
-        'category_id',     // FK -> Category
-        'tenant_id',       // FK -> Tenant for multi-tenant SaaS
-        'metadata',        // Flexible JSON storage
+        'is_approved',       // Approval status
+        'image',             // Optional service image/banner
+        'category_id',       // FK -> Category
+        'tenant_id',         // FK -> Tenant for multi-tenant SaaS
+        'metadata',          // Flexible JSON storage
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'is_approved' => 'boolean',
         'metadata'  => 'array',
         'price'     => 'decimal:2',
         'availability' => 'array',
@@ -45,7 +48,7 @@ class Service extends Model
 
     public function provider()
     {
-        return $this->belongsTo(ServiceProvider::class, 'provider_id');
+        return $this->belongsTo(Provider::class, 'provider_id');
     }
 
     public function category()
@@ -58,17 +61,18 @@ class Service extends Model
         return $this->hasMany(Booking::class);
     }
 
-    // Scope: only services that belong to providers who are professional
-    public function scopeOfferedByProfessional($query)
-    {
-        return $query->whereHas('provider', function($q){
-            $q->where('status', 'approved')->where('category', 'Professional')->orWhere('type','provider-professional');
-        });
-    }
-
     /**
      * Scopes
      */
+    public function scopeOfferedByProfessional($query)
+    {
+        return $query->whereHas('provider', function($q){
+            $q->where('status', 'approved')
+              ->where('category', 'Professional')
+              ->orWhere('provider_type','provider-professional');
+        });
+    }
+
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
@@ -108,7 +112,6 @@ class Service extends Model
 
     public function scopePopular($query)
     {
-        // Assuming popularity based on number of bookings
         return $query->withCount('bookings')->orderBy('bookings_count', 'desc');
     }
 
@@ -116,11 +119,9 @@ class Service extends Model
     {
         $allowedSorts = ['name', 'price', 'created_at'];
         $direction = in_array(strtolower($direction), ['asc', 'desc']) ? $direction : 'asc';
-
         if (in_array($sort, $allowedSorts)) {
             return $query->orderBy($sort, $direction);
         }
-
         return $query->orderBy('created_at', 'desc');
     }
 
@@ -138,18 +139,15 @@ class Service extends Model
     }
 
     /**
-     * Return available time slots for a given date using simple availability rules stored in availability JSON.
-     * This is a basic implementation; you may expand to recurring rules, exceptions, and timezones.
+     * Return available time slots for a given date using availability JSON.
      */
     public function availableSlots(string $date, ?string $outputTimezone = null): array
     {
         $duration = $this->duration_minutes ?? 60;
         $availability = $this->availability ?? [];
 
-        // Map weekday keys
         $dayKey = strtolower(Carbon::parse($date)->format('D'));
         $dayName = strtolower(Carbon::parse($date)->format('l'));
-
         $ranges = $availability[$dayKey] ?? $availability[$dayName] ?? [];
 
         $slots = [];
@@ -167,7 +165,6 @@ class Service extends Model
                 $slotEnd = (clone $cursor)->addMinutes($duration);
                 if ($slotEnd->gt($endTimeObj)) break;
 
-                // Check overlapping bookings in UTC to be safe
                 $cursorUtc = $cursor->copy()->setTimezone('UTC');
                 $slotEndUtc = $slotEnd->copy()->setTimezone('UTC');
 
@@ -176,19 +173,18 @@ class Service extends Model
                         $q->whereBetween('start_at', [$cursorUtc->toDateTimeString(), $slotEndUtc->toDateTimeString()])
                           ->orWhereBetween('end_at', [$cursorUtc->toDateTimeString(), $slotEndUtc->toDateTimeString()])
                           ->orWhere(function($q2) use ($cursorUtc, $slotEndUtc) {
-                              $q2->where('start_at', '<=', $cursorUtc->toDateTimeString())->where('end_at', '>=', $slotEndUtc->toDateTimeString());
+                              $q2->where('start_at', '<=', $cursorUtc->toDateTimeString())
+                                 ->where('end_at', '>=', $slotEndUtc->toDateTimeString());
                           });
                     })->exists();
 
                 if (!$exists) {
                     $startOut = $cursor->copy();
                     $endOut = $slotEnd->copy();
-
                     if ($outputTimezone) {
                         $startOut = $startOut->setTimezone($outputTimezone);
                         $endOut = $endOut->setTimezone($outputTimezone);
                     }
-
                     $slots[] = ['start' => $startOut->toDateTimeString(), 'end' => $endOut->toDateTimeString()];
                 }
 

@@ -1,345 +1,345 @@
 @extends('layouts.super-admin')
 
-@section('page-title', 'Super Admin Dashboard')
-@section('page-description', 'Complete system overview and management console')
-
 @section('content')
-<div class="container-fluid py-4">
-    {{-- Dashboard Header --}}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 fw-bold text-primary">
-                <i class="fas fa-crown me-2"></i>System Overview
-            </h1>
-            <p class="text-muted mb-0">{{ now()->format('l, F j, Y') }} • Complete platform analytics</p>
+<div class="min-h-screen bg-gray-50 p-6">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900">Super Admin Dashboard</h1>
+        <p class="text-gray-600 mt-2">System overview and management console</p>
+    </div>
+
+    <!-- Overview Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Users -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Total Users</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ number_format($stats['users']['total']) }}</p>
+                    <p class="text-sm text-green-600 mt-1">
+                        <i class="fas fa-arrow-up mr-1"></i>
+                        +{{ $stats['users']['new_this_month'] }} this month
+                    </p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <i class="fas fa-users text-blue-600 text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-between text-sm">
+                <span class="text-gray-500">Active: {{ $stats['users']['active'] }}</span>
+                <span class="text-gray-500">Providers: {{ $stats['users']['providers'] }}</span>
+            </div>
         </div>
-        <div class="d-flex gap-2">
-            <button class="btn btn-outline-primary btn-sm" onclick="refreshDashboard()">
-                <i class="fas fa-sync-alt me-1"></i>Refresh
-            </button>
-            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#systemHealthModal">
-                <i class="fas fa-heartbeat me-1"></i>System Health
-            </button>
+
+        <!-- Total Providers -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Providers</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ number_format($stats['providers']['total']) }}</p>
+                    <p class="text-sm text-yellow-600 mt-1">
+                        <i class="fas fa-clock mr-1"></i>
+                        {{ $stats['providers']['pending'] }} pending verification
+                    </p>
+                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                    <i class="fas fa-user-md text-green-600 text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-between text-sm">
+                <span class="text-gray-500">Verified: {{ $stats['providers']['verified'] }}</span>
+                <span class="text-gray-500">Bonding: {{ $stats['providers']['bonding'] }}</span>
+            </div>
+        </div>
+
+        <!-- Total Bookings -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Bookings</p>
+                    <p class="text-3xl font-bold text-gray-900">{{ number_format($stats['bookings']['total']) }}</p>
+                    <p class="text-sm text-blue-600 mt-1">
+                        <i class="fas fa-calendar mr-1"></i>
+                        {{ $stats['bookings']['this_month'] }} this month
+                    </p>
+                </div>
+                <div class="p-3 bg-purple-100 rounded-full">
+                    <i class="fas fa-calendar-check text-purple-600 text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-between text-sm">
+                <span class="text-gray-500">Completed: {{ $stats['bookings']['completed'] }}</span>
+                <span class="text-gray-500">Pending: {{ $stats['bookings']['pending'] }}</span>
+            </div>
+        </div>
+
+        <!-- Revenue -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-600">Total Revenue</p>
+                    <p class="text-3xl font-bold text-gray-900">KSh {{ number_format($stats['bookings']['revenue']) }}</p>
+                    <p class="text-sm text-green-600 mt-1">
+                        <i class="fas fa-chart-line mr-1"></i>
+                        KSh {{ number_format($stats['transactions']['this_month_volume']) }} this month
+                    </p>
+                </div>
+                <div class="p-3 bg-yellow-100 rounded-full">
+                    <i class="fas fa-coins text-yellow-600 text-xl"></i>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-between text-sm">
+                <span class="text-gray-500">Transactions: {{ $stats['transactions']['successful'] }}</span>
+                <span class="text-gray-500">Rating: {{ $stats['reviews']['average_rating'] }}★</span>
+            </div>
         </div>
     </div>
 
-    {{-- Enhanced Stats Cards with Trends --}}
-    <div class="row g-4 mb-4">
-        <div class="col-md-3">
-            <div class="card shadow-sm border-0 rounded-4 p-3 stats-card">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <div class="icon bg-primary text-white rounded-circle p-3 me-3">
-                            <i class="fas fa-users fa-lg"></i>
-                        </div>
-                        <div>
-                            <h4 class="mb-1">{{ number_format($stats['users'] ?? 0) }}</h4>
-                            <small class="text-muted">Total Users</small>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <span class="badge bg-success-soft text-success">
-                            +{{ $stats['users_growth'] ?? 0 }}%
+    <!-- Charts Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <!-- User Growth Chart -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">User Growth</h3>
+                <div class="flex space-x-2">
+                    <button class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded-full">12M</button>
+                    <button class="px-3 py-1 text-sm text-gray-500 hover:bg-gray-100 rounded-full">6M</button>
+                </div>
+            </div>
+            <div class="h-64">
+                <canvas id="userGrowthChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Revenue Growth Chart -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900">Revenue Growth</h3>
+                <div class="flex space-x-2">
+                    <button class="px-3 py-1 text-sm bg-green-100 text-green-700 rounded-full">12M</button>
+                    <button class="px-3 py-1 text-sm text-gray-500 hover:bg-gray-100 rounded-full">6M</button>
+                </div>
+            </div>
+            <div class="h-64">
+                <canvas id="revenueGrowthChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Stats Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Provider Status -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Provider Status</h3>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Verified Providers</span>
+                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        {{ $stats['providers']['verified'] }}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Pending Verification</span>
+                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                        {{ $stats['providers']['pending'] }}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Bonding Providers</span>
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                        {{ $stats['providers']['bonding'] }}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Professional Providers</span>
+                    <span class="px-2 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                        {{ $stats['providers']['professional'] }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Transaction Status -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Transaction Status</h3>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Successful</span>
+                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        {{ $stats['transactions']['successful'] }}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Failed</span>
+                    <span class="px-2 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                        {{ $stats['transactions']['failed'] }}
+                    </span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Pending</span>
+                    <span class="px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-sm font-medium">
+                        {{ $stats['transactions']['pending'] }}
+                    </span>
+                </div>
+                <div class="pt-2 border-t">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600 font-medium">Total Volume</span>
+                        <span class="text-lg font-bold text-gray-900">
+                            KSh {{ number_format($stats['transactions']['volume']) }}
                         </span>
-                        <canvas class="trend-chart mt-1" width="50" height="20" data-values="{{ json_encode($stats['users_trend'] ?? []) }}"></canvas>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-3">
-            <div class="card shadow-sm border-0 rounded-4 p-3 stats-card">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <div class="icon bg-success text-white rounded-circle p-3 me-3">
-                            <i class="fas fa-user-md fa-lg"></i>
-                        </div>
-                        <div>
-                            <h4 class="mb-1">{{ number_format($stats['providers'] ?? 0) }}</h4>
-                            <small class="text-muted">Active Providers</small>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <span class="badge bg-info-soft text-info">
-                            {{ $stats['verified_providers'] ?? 0 }} verified
-                        </span>
-                    </div>
+        <!-- System Health -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">System Health</h3>
+            <div class="space-y-4">
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Database Size</span>
+                    <span class="text-sm font-medium text-gray-900">{{ $stats['system']['database_size'] }}</span>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm border-0 rounded-4 p-3 stats-card">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <div class="icon bg-warning text-white rounded-circle p-3 me-3">
-                            <i class="fas fa-file-alt fa-lg"></i>
-                        </div>
-                        <div>
-                            <h4 class="mb-1">{{ number_format($stats['pending_documents'] ?? 0) }}</h4>
-                            <small class="text-muted">Pending KYC</small>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        @if(($stats['pending_documents'] ?? 0) > 0)
-                            <span class="badge bg-danger text-white">
-                                <i class="fas fa-exclamation-triangle me-1"></i>Action Required
-                            </span>
-                        @else
-                            <span class="badge bg-success-soft text-success">
-                                <i class="fas fa-check me-1"></i>All Clear
-                            </span>
-                        @endif
-                    </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Cache Hit Rate</span>
+                    <span class="text-sm font-medium text-green-600">{{ $stats['system']['cache_hit_rate'] }}%</span>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card shadow-sm border-0 rounded-4 p-3 stats-card">
-                <div class="d-flex align-items-center justify-content-between">
-                    <div class="d-flex align-items-center">
-                        <div class="icon bg-info text-white rounded-circle p-3 me-3">
-                            <i class="fas fa-dollar-sign fa-lg"></i>
-                        </div>
-                        <div>
-                            <h4 class="mb-1">${{ number_format($stats['revenue'] ?? 0, 2) }}</h4>
-                            <small class="text-muted">Platform Revenue</small>
-                        </div>
-                    </div>
-                    <div class="text-end">
-                        <span class="badge bg-warning-soft text-warning">
-                            +{{ $stats['revenue_growth'] ?? 0 }}%
-                        </span>
-                        <canvas class="trend-chart mt-1" width="50" height="20" data-values="{{ json_encode($stats['revenue_trend'] ?? []) }}"></canvas>
-                    </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Uptime</span>
+                    <span class="text-sm font-medium text-green-600">{{ $stats['system']['uptime'] }}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-gray-600">Server Load</span>
+                    <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
+                        {{ $stats['system']['server_load'] }}
+                    </span>
                 </div>
             </div>
         </div>
     </div>
 
-    {{-- Analytics Dashboard Row --}}
-    <div class="row g-4 mb-4">
-        {{-- Platform Analytics Chart --}}
-        <div class="col-lg-8">
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-header border-0 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">📈 Platform Analytics</h5>
-                    <div class="btn-group btn-group-sm" role="group">
-                        <input type="radio" class="btn-check" name="analytics-period" id="analytics-week" autocomplete="off">
-                        <label class="btn btn-outline-primary" for="analytics-week">7D</label>
-
-                        <input type="radio" class="btn-check" name="analytics-period" id="analytics-month" autocomplete="off" checked>
-                        <label class="btn btn-outline-primary" for="analytics-month">30D</label>
-
-                        <input type="radio" class="btn-check" name="analytics-period" id="analytics-year" autocomplete="off">
-                        <label class="btn btn-outline-primary" for="analytics-year">1Y</label>
+    <!-- Recent Activity -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Recent Users -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Users</h3>
+            <div class="space-y-4">
+                @forelse($recentActivity['users'] as $user)
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span class="text-sm font-medium text-blue-600">
+                                    {{ strtoupper(substr($user->name, 0, 2)) }}
+                                </span>
+                            </div>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">{{ $user->name }}</p>
+                                <p class="text-xs text-gray-500">{{ $user->email }}</p>
+                            </div>
+                        </div>
+                        <span class="text-xs text-gray-500">{{ $user->created_at->diffForHumans() }}</span>
                     </div>
-                </div>
-                <div class="card-body">
-                    <canvas id="platformChart" height="300"></canvas>
-                </div>
+                @empty
+                    <p class="text-gray-500 text-center py-4">No recent users</p>
+                @endforelse
             </div>
         </div>
 
-        {{-- System Health & Alerts --}}
-        <div class="col-lg-4">
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-header border-0">
-                    <h5 class="mb-0">🔧 System Health</h5>
-                </div>
-                <div class="card-body">
-                    {{-- Health Metrics --}}
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <small class="fw-medium">Database Performance</small>
-                            <span class="badge bg-success-soft text-success">Excellent</span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-success" style="width: {{ $systemHealth['database_performance'] ?? 95 }}%"></div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <small class="fw-medium">Server Load</small>
-                            <span class="badge bg-{{ ($systemHealth['server_load'] ?? 20) > 80 ? 'danger' : 'success' }}-soft text-{{ ($systemHealth['server_load'] ?? 20) > 80 ? 'danger' : 'success' }}">
-                                {{ ($systemHealth['server_load'] ?? 20) > 80 ? 'High' : 'Normal' }}
-                            </span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-{{ ($systemHealth['server_load'] ?? 20) > 80 ? 'danger' : 'success' }}" style="width: {{ $systemHealth['server_load'] ?? 20 }}%"></div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <small class="fw-medium">Cache Hit Rate</small>
-                            <span class="badge bg-info-soft text-info">{{ $systemHealth['cache_hit_rate'] ?? 87 }}%</span>
-                        </div>
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar bg-info" style="width: {{ $systemHealth['cache_hit_rate'] ?? 87 }}%"></div>
-                        </div>
-                    </div>
-
-                    {{-- Recent Alerts --}}
-                    <div class="mt-4">
-                        <h6 class="fw-semibold mb-3">Recent Alerts</h6>
-                        @forelse($recentAlerts ?? [] as $alert)
-                            <div class="alert alert-{{ $alert['type'] }} alert-sm p-2 mb-2">
-                                <small><i class="fas fa-{{ $alert['icon'] }} me-1"></i>{{ $alert['message'] }}</small>
+        <!-- Recent Bookings -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Bookings</h3>
+            <div class="space-y-4">
+                @forelse($recentActivity['bookings'] as $booking)
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                                <i class="fas fa-calendar text-purple-600 text-xs"></i>
                             </div>
-                        @empty
-                            <div class="text-center text-muted py-2">
-                                <i class="fas fa-shield-check fa-lg mb-1 d-block text-success"></i>
-                                <small>All systems operational</small>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">
+                                    {{ $booking->user->name ?? 'Unknown User' }}
+                                </p>
+                                <p class="text-xs text-gray-500">
+                                    KSh {{ number_format($booking->amount) }} • {{ ucfirst($booking->status) }}
+                                </p>
                             </div>
-                        @endforelse
+                        </div>
+                        <span class="text-xs text-gray-500">{{ $booking->created_at->diffForHumans() }}</span>
                     </div>
-                </div>
+                @empty
+                    <p class="text-gray-500 text-center py-4">No recent bookings</p>
+                @endforelse
             </div>
         </div>
     </div>
+</div>
 
-    {{-- Management Actions --}}
-    <div class="row g-4 mb-4">
-        <div class="col-md-2">
-            <a href="{{ route('admin.users.index') }}" class="card text-center text-decoration-none shadow-sm border-0 rounded-4 p-4 hover-lift quick-action">
-                <i class="fas fa-users-cog fa-2x mb-2 text-primary"></i>
-                <h6 class="fw-semibold mb-0">User Management</h6>
-                <small class="text-muted">{{ $stats['users'] ?? 0 }} users</small>
-            </a>
-        </div>
-        <div class="col-md-2">
-            <a href="{{ route('admin.providers.index') }}" class="card text-center text-decoration-none shadow-sm border-0 rounded-4 p-4 hover-lift quick-action">
-                <i class="fas fa-user-check fa-2x mb-2 text-success"></i>
-                <h6 class="fw-semibold mb-0">Provider KYC</h6>
-                <small class="text-muted">{{ $stats['pending_documents'] ?? 0 }} pending</small>
-            </a>
-        </div>
-        <div class="col-md-2">
-            <a href="{{ route('admin.bookings.index') }}" class="card text-center text-decoration-none shadow-sm border-0 rounded-4 p-4 hover-lift quick-action">
-                <i class="fas fa-calendar-alt fa-2x mb-2 text-warning"></i>
-                <h6 class="fw-semibold mb-0">Bookings</h6>
-                <small class="text-muted">{{ $stats['bookings'] ?? 0 }} total</small>
-            </a>
-        </div>
-        <div class="col-md-2">
-            <a href="{{ route('admin.analytics.index') }}" class="card text-center text-decoration-none shadow-sm border-0 rounded-4 p-4 hover-lift quick-action">
-                <i class="fas fa-chart-line fa-2x mb-2 text-info"></i>
-                <h6 class="fw-semibold mb-0">Analytics</h6>
-                <small class="text-muted">Deep insights</small>
-            </a>
-        </div>
-        <div class="col-md-2">
-            <a href="{{ route('admin.settings.index') }}" class="card text-center text-decoration-none shadow-sm border-0 rounded-4 p-4 hover-lift quick-action">
-                <i class="fas fa-cogs fa-2x mb-2 text-secondary"></i>
-                <h6 class="fw-semibold mb-0">Settings</h6>
-                <small class="text-muted">System config</small>
-            </a>
-        </div>
-        <div class="col-md-2">
-            <button onclick="showBulkActions()" class="card text-center text-decoration-none shadow-sm border-0 rounded-4 p-4 hover-lift quick-action w-100 border-0 bg-transparent">
-                <i class="fas fa-bolt fa-2x mb-2 text-purple"></i>
-                <h6 class="fw-semibold mb-0">Bulk Actions</h6>
-                <small class="text-muted">Mass operations</small>
-            </button>
-        </div>
-    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const chartData = @json($chartData);
 
-    {{-- Main Content Row --}}
-    <div class="row g-4">
-        {{-- Recent Activity --}}
-        <div class="col-lg-8">
-            <div class="card shadow-sm border-0 rounded-4">
-                <div class="card-header border-0 d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">🕒 Recent Activity</h5>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-sm btn-outline-primary" onclick="exportActivity()">
-                            <i class="fas fa-download me-1"></i>Export
-                        </button>
-                        <a href="{{ route('admin.activity.index') }}" class="btn btn-sm btn-outline-secondary">View All</a>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="table-light">
-                                <tr>
-                                    <th class="border-0">User</th>
-                                    <th class="border-0">Action</th>
-                                    <th class="border-0">Resource</th>
-                                    <th class="border-0">Time</th>
-                                    <th class="border-0">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($recentActivity ?? [] as $activity)
-                                    <tr>
-                                        <td>
-                                            <div class="d-flex align-items-center">
-                                                <div class="avatar-sm bg-primary-soft rounded-circle d-flex align-items-center justify-content-center me-2">
-                                                    {{ strtoupper(substr($activity['user_name'] ?? 'U', 0, 1)) }}
-                                                </div>
-                                                <div>
-                                                    <div class="fw-semibold">{{ $activity['user_name'] ?? 'System' }}</div>
-                                                    <small class="text-muted">{{ $activity['user_role'] ?? 'Unknown' }}</small>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <span class="fw-medium">{{ $activity['action'] ?? 'Unknown' }}</span>
-                                        </td>
-                                        <td>{{ $activity['resource'] ?? 'N/A' }}</td>
-                                        <td>
-                                            <small class="text-muted">
-                                                {{ isset($activity['created_at']) ? \Carbon\Carbon::parse($activity['created_at'])->diffForHumans() : 'Unknown' }}
-                                            </small>
-                                        </td>
-                                        <td>
-                                            @php
-                                                $statusColors = [
-                                                    'success' => 'success',
-                                                    'pending' => 'warning',
-                                                    'failed' => 'danger',
-                                                    'info' => 'info'
-                                                ];
-                                                $statusColor = $statusColors[$activity['status'] ?? 'info'] ?? 'secondary';
-                                            @endphp
-                                            <span class="badge bg-{{ $statusColor }}-soft text-{{ $statusColor }}">
-                                                {{ ucfirst($activity['status'] ?? 'Unknown') }}
-                                            </span>
-                                        </td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="5" class="text-center text-muted py-4">
-                                            <i class="fas fa-history fa-2x mb-2 d-block"></i>
-                                            No recent activity found
-                                        </td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
+        // User Growth Chart
+        const userCtx = document.getElementById('userGrowthChart').getContext('2d');
+        new Chart(userCtx, {
+            type: 'line',
+            data: {
+                labels: chartData.months,
+                datasets: [{
+                    label: 'New Users',
+                    data: chartData.userGrowth,
+                    borderColor: '#3B82F6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
 
-        {{-- Quick Stats & Notifications --}}
-        <div class="col-lg-4">
-            {{-- Platform Overview --}}
-            <div class="card shadow-sm border-0 rounded-4 mb-4">
-                <div class="card-header border-0">
-                    <h5 class="mb-0">📊 Platform Overview</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row text-center g-3">
-                        <div class="col-6">
-                            <div class="border rounded p-2">
-                                <h4 class="text-primary mb-1">{{ $stats['active_sessions'] ?? 0 }}</h4>
-                                <small class="text-muted">Active Sessions</small>
-                            </div>
+        // Revenue Growth Chart
+        const revenueCtx = document.getElementById('revenueGrowthChart').getContext('2d');
+        new Chart(revenueCtx, {
+            type: 'bar',
+            data: {
+                labels: chartData.months,
+                datasets: [{
+                    label: 'Revenue (KSh)',
+                    data: chartData.revenueGrowth,
+                    backgroundColor: '#10B981',
+                    borderRadius: 4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+    </script>
+@endsection
                         </div>
                         <div class="col-6">
                             <div class="border rounded p-2">

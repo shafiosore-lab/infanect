@@ -8,7 +8,6 @@
     $provider = null;
 
     if (auth()->check()) {
-        // Cache provider stats for 5 minutes to improve performance
         $cacheKey = 'provider_stats_' . auth()->id();
         $providerStats = Cache::remember($cacheKey, 5 * 60, function () {
             $provider = Provider::where('user_id', auth()->id())->first();
@@ -18,7 +17,7 @@
                     'total_handled' => 0,
                     'active_services' => 0,
                     'pending_bookings' => 0,
-                    'provider_type' => null
+                    'provider_type' => null,
                 ];
             }
 
@@ -26,7 +25,7 @@
                 'total_handled' => Transaction::where('provider_id', $provider->id)->sum('amount') ?? 0,
                 'active_services' => $provider->services()->where('is_active', true)->count() ?? 0,
                 'pending_bookings' => $provider->bookings()->where('status', 'pending')->count() ?? 0,
-                'provider_type' => $provider->provider_type ?? 'provider'
+                'provider_type' => $provider->provider_type ?? 'provider',
             ];
         });
 
@@ -38,196 +37,208 @@
 @endphp
 
 <div class="mt-4">
-    <div class="d-flex align-items-center justify-content-between mb-3">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-3">
         <span class="text-xs font-semibold uppercase tracking-wider text-gray-400">Provider Dashboard</span>
         @if($provider && $provider->status === 'approved')
-            <span class="badge bg-success badge-sm">✓ Verified</span>
+            <span class="px-2 py-0.5 text-xs rounded bg-green-600 text-white">✓ Verified</span>
         @elseif($provider && $provider->status === 'pending')
-            <span class="badge bg-warning badge-sm">⏳ Pending</span>
+            <span class="px-2 py-0.5 text-xs rounded bg-yellow-500 text-white">⏳ Pending</span>
         @endif
     </div>
 
-    <ul class="list-unstyled ml-2 space-y-1">
-        <!-- Core Provider Links -->
-        <li class="mb-2">
+    <!-- Navigation -->
+    <ul class="space-y-1">
+        <!-- Core -->
+        <li>
             <a href="{{ route('dashboard.provider-professional') }}"
-               class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('dashboard.provider-professional') ? 'fw-bold' : '' }}">
-                <i class="fas fa-chart-line me-2"></i>Overview
+               class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('dashboard.provider-professional') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                <i class="fas fa-chart-line w-5"></i>
+                <span class="ml-2">Overview</span>
             </a>
         </li>
 
-        <li class="mb-2">
+        <li>
             <a href="{{ route('services.index') }}"
-               class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('services.*') ? 'fw-bold' : '' }}">
-                <i class="fas fa-concierge-bell me-2"></i>My Services
+               class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('services.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                <i class="fas fa-concierge-bell w-5"></i>
+                <span class="ml-2">My Services</span>
                 @if($providerStats['active_services'] > 0)
-                    <span class="badge bg-primary badge-sm ms-auto">{{ $providerStats['active_services'] }}</span>
+                    <span class="ml-auto bg-primary text-white text-xs px-2 py-0.5 rounded-full">
+                        {{ $providerStats['active_services'] }}
+                    </span>
                 @endif
             </a>
         </li>
 
-        <li class="mb-2">
+        <li>
             <a href="{{ route('bookings.index') }}"
-               class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('bookings.*') ? 'fw-bold' : '' }}">
-                <i class="fas fa-calendar-check me-2"></i>Bookings
+               class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('bookings.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                <i class="fas fa-calendar-check w-5"></i>
+                <span class="ml-2">Bookings</span>
                 @if($providerStats['pending_bookings'] > 0)
-                    <span class="badge bg-warning badge-sm ms-auto">{{ $providerStats['pending_bookings'] }}</span>
+                    <span class="ml-auto bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        {{ $providerStats['pending_bookings'] }}
+                    </span>
                 @endif
             </a>
         </li>
 
-        <!-- Professional Provider Specific Links -->
+        <!-- Professional -->
         @if($isProfessional)
-            <li class="mb-2">
+            <li>
+                <a href="{{ route('clients.index') }}"
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('clients.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-user-friends w-5"></i>
+                    <span class="ml-2">My Clients</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('messages.index') }}"
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('messages.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-envelope-open-text w-5"></i>
+                    <span class="ml-2">Message Management</span>
+                </a>
+            </li>
+            <li>
                 <a href="{{ route('ai.chat') }}"
-                   class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('ai.*') ? 'fw-bold' : '' }}">
-                    <i class="fas fa-robot me-2"></i>AI Assistant
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('ai.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-robot w-5"></i>
+                    <span class="ml-2">AI Assistant</span>
                 </a>
             </li>
-
-            <li class="mb-2">
+            <li>
                 <a href="{{ route('training.index') }}"
-                   class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('training.*') ? 'fw-bold' : '' }}">
-                    <i class="fas fa-graduation-cap me-2"></i>Professional Development
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('training.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-graduation-cap w-5"></i>
+                    <span class="ml-2">Professional Development</span>
                 </a>
             </li>
         @endif
 
-        <!-- Bonding Provider Specific Links -->
+        <!-- Bonding -->
         @if($isBonding)
-            <li class="mb-2">
+            <li>
                 <a href="{{ route('dashboard.provider-bonding') }}"
-                   class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('dashboard.provider-bonding') ? 'fw-bold' : '' }}">
-                    <i class="fas fa-users me-2"></i>Bonding Activities
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('dashboard.provider-bonding') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-users w-5"></i>
+                    <span class="ml-2">Bonding Activities</span>
                 </a>
             </li>
-
-            <li class="mb-2">
+            <li>
                 <a href="{{ route('activities.index') }}"
-                   class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('activities.*') ? 'fw-bold' : '' }}">
-                    <i class="fas fa-child me-2"></i>Community Events
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('activities.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-child w-5"></i>
+                    <span class="ml-2">Community Events</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('families.index') }}"
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('families.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-home w-5"></i>
+                    <span class="ml-2">Families</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('community.analytics') }}"
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('community.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-chart-pie w-5"></i>
+                    <span class="ml-2">Community Impact</span>
+                </a>
+            </li>
+            <li>
+                <a href="{{ route('messages.index') }}"
+                   class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('messages.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                    <i class="fas fa-envelope w-5"></i>
+                    <span class="ml-2">Message Management</span>
                 </a>
             </li>
         @endif
 
-        <!-- Communication & Support -->
-        <li class="mb-2">
-            <a href="#" class="d-flex align-items-center text-primary hover:underline">
-                <i class="fas fa-envelope me-2"></i>Messages
-                <span class="badge bg-secondary badge-sm ms-auto">0</span>
+        <!-- Generic -->
+        <li>
+            <a href="#" class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium text-gray-700">
+                <i class="fas fa-bell w-5"></i>
+                <span class="ml-2">Notifications</span>
             </a>
         </li>
 
-        <li class="mb-2">
-            <a href="#" class="d-flex align-items-center text-primary hover:underline">
-                <i class="fas fa-bell me-2"></i>Notifications
-            </a>
-        </li>
-
-        <!-- Financial Management -->
-        <li class="mb-2">
-            <a href="#" class="d-flex align-items-center text-primary hover:underline">
-                <i class="fas fa-chart-bar me-2"></i>Analytics
-            </a>
-        </li>
-
-        <li class="mb-2">
-            <a href="#" class="d-flex align-items-center text-primary hover:underline">
-                <i class="fas fa-dollar-sign me-2"></i>Financials
+        <li>
+            <a href="#" class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium text-gray-700">
+                <i class="fas fa-dollar-sign w-5"></i>
+                <span class="ml-2">Financials</span>
             </a>
         </li>
 
         <!-- Settings -->
-        <li class="mb-2">
+        <li>
             <a href="{{ route('profile.edit') }}"
-               class="d-flex align-items-center text-primary hover:underline {{ request()->routeIs('profile.*') ? 'fw-bold' : '' }}">
-                <i class="fas fa-cog me-2"></i>Settings
+               class="flex items-center px-3 py-2 rounded hover:bg-primary/10 text-sm font-medium {{ request()->routeIs('profile.*') ? 'bg-primary/20 text-primary' : 'text-gray-700' }}">
+                <i class="fas fa-cog w-5"></i>
+                <span class="ml-2">Settings</span>
             </a>
         </li>
 
-        <!-- Provider Registration (if not approved yet) -->
+        <!-- Registration -->
         @if(!$provider || $provider->status !== 'approved')
-            <li class="mb-2">
+            <li>
                 <a href="{{ route('provider.register') }}"
-                   class="d-flex align-items-center text-warning hover:underline">
-                    <i class="fas fa-user-plus me-2"></i>Complete Registration
+                   class="flex items-center px-3 py-2 rounded hover:bg-yellow-100 text-sm font-medium text-yellow-600">
+                    <i class="fas fa-user-plus w-5"></i>
+                    <span class="ml-2">Complete Registration</span>
                 </a>
             </li>
         @endif
     </ul>
 
-    <!-- Provider Stats Summary -->
-    <div class="mt-4 p-3 bg-light rounded">
-        <h6 class="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">Performance</h6>
-        <div class="row g-2 text-sm">
-            <div class="col-12">
-                <div class="d-flex justify-content-between">
-                    <span class="text-muted">Total Revenue:</span>
-                    <span class="fw-bold text-success">${{ number_format($providerStats['total_handled'], 2) }}</span>
-                </div>
+    <!-- Stats -->
+    <div class="mt-4 p-4 bg-gray-50 rounded">
+        <h6 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Performance</h6>
+        <div class="space-y-2 text-sm">
+            <div class="flex justify-between">
+                <span class="text-gray-500">Total Revenue:</span>
+                <span class="font-semibold text-green-600">${{ number_format($providerStats['total_handled'], 2) }}</span>
             </div>
-            <div class="col-12">
-                <div class="d-flex justify-content-between">
-                    <span class="text-muted">Active Services:</span>
-                    <span class="fw-bold">{{ $providerStats['active_services'] }}</span>
-                </div>
+            <div class="flex justify-between">
+                <span class="text-gray-500">Active Services:</span>
+                <span class="font-semibold">{{ $providerStats['active_services'] }}</span>
             </div>
             @if($providerStats['pending_bookings'] > 0)
-                <div class="col-12">
-                    <div class="d-flex justify-content-between">
-                        <span class="text-muted">Pending Bookings:</span>
-                        <span class="fw-bold text-warning">{{ $providerStats['pending_bookings'] }}</span>
-                    </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-500">Pending Bookings:</span>
+                    <span class="font-semibold text-yellow-600">{{ $providerStats['pending_bookings'] }}</span>
                 </div>
             @endif
         </div>
     </div>
 
     <!-- Quick Actions -->
-    <div class="mt-3">
-        <h6 class="text-xs font-semibold uppercase tracking-wider text-gray-600 mb-2">Quick Actions</h6>
-        <div class="d-grid gap-1">
-            <a href="{{ route('services.create') }}" class="btn btn-sm btn-outline-primary">
-                <i class="fas fa-plus me-1"></i>Add Service
+    <div class="mt-4">
+        <h6 class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Quick Actions</h6>
+        <div class="space-y-2">
+            <a href="{{ route('services.create') }}" class="w-full flex items-center justify-center px-3 py-2 rounded border text-sm text-primary border-primary hover:bg-primary hover:text-white">
+                <i class="fas fa-plus mr-1"></i> Add Service
             </a>
             @if($isBonding)
-                <a href="{{ route('activities.create') }}" class="btn btn-sm btn-outline-success">
-                    <i class="fas fa-calendar-plus me-1"></i>Create Activity
+                <a href="{{ route('activities.create') }}" class="w-full flex items-center justify-center px-3 py-2 rounded border text-sm text-green-600 border-green-600 hover:bg-green-600 hover:text-white">
+                    <i class="fas fa-calendar-plus mr-1"></i> Create Activity
                 </a>
             @endif
-            <a href="{{ route('dashboard.provider-professional') }}" class="btn btn-sm btn-outline-info">
-                <i class="fas fa-chart-line me-1"></i>View Analytics
+            <a href="{{ route('dashboard.provider-professional') }}" class="w-full flex items-center justify-center px-3 py-2 rounded border text-sm text-blue-600 border-blue-600 hover:bg-blue-600 hover:text-white">
+                <i class="fas fa-chart-line mr-1"></i> View Analytics
             </a>
         </div>
     </div>
 
-    <!-- Provider Type Badge -->
-    <div class="mt-3 text-center">
+    <!-- Provider Type -->
+    <div class="mt-4 text-center">
         @if($isProfessional)
-            <span class="badge bg-primary">🩺 Professional Provider</span>
+            <span class="px-3 py-1 text-xs rounded bg-primary text-white">🩺 Professional Provider</span>
         @elseif($isBonding)
-            <span class="badge bg-success">🤝 Bonding Provider</span>
+            <span class="px-3 py-1 text-xs rounded bg-green-600 text-white">🤝 Bonding Provider</span>
         @else
-            <span class="badge bg-secondary">🏢 General Provider</span>
+            <span class="px-3 py-1 text-xs rounded bg-gray-500 text-white">🏢 General Provider</span>
         @endif
     </div>
 </div>
-
-<style>
-.hover\:underline:hover {
-    text-decoration: underline !important;
-}
-
-.space-y-1 > * + * {
-    margin-top: 0.25rem;
-}
-
-.tracking-wider {
-    letter-spacing: 0.05em;
-}
-
-.badge-sm {
-    font-size: 0.7rem;
-    padding: 0.2rem 0.4rem;
-}
-</style>
+{{-- End of Provider Sidebar Links --}}

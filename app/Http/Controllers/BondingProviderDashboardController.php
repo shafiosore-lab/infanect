@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use App\Models\Provider;
 
 class BondingProviderDashboardController extends Controller
@@ -14,138 +13,172 @@ class BondingProviderDashboardController extends Controller
     {
         $user = Auth::user();
 
-        // Get provider data without soft deletes
         $provider = Cache::remember("provider_data_{$user->id}", 300, function () use ($user) {
-            return Provider::where('user_id', $user->id)
-                ->active() // Use scope instead of soft delete check
+            return Provider::with(['user', 'reviews'])
+                ->where('user_id', $user->id)
+                ->active()
                 ->first();
         });
 
         if (!$provider) {
-            // Redirect to provider setup if no provider profile exists
-            return redirect()->route('provider.setup')->with('message', 'Please complete your provider profile first.');
+            return redirect()->route('provider.setup')
+                ->with('message', 'Please complete your provider profile first.');
         }
 
-        return view('layouts.app', [
-            'userRole' => 'provider-bonding',
+        return view('dashboards.provider-bonding', [
             'provider' => $provider,
-            'metrics' => $this->getBondingMetrics($user, $provider),
-            'upcomingBookings' => $this->getUpcomingBookings($user, $provider),
-            'recentActivities' => $this->getRecentActivities($user, $provider),
-            'wellnessData' => $this->getWellnessData($user, $provider),
-            'chartData' => $this->getBondingChartData($user, $provider)
+            'metrics' => $this->getBondingMetrics($provider),
+            'upcomingBookings' => $this->getUpcomingBookings($provider),
+            'recentActivities' => $this->getRecentActivities($provider),
+            'wellnessData' => $this->getWellnessData($provider),
+            'chartData' => $this->getBondingChartData($provider),
         ]);
     }
 
-    private function getBondingMetrics($user, $provider)
+    private function getBondingMetrics($provider)
     {
-        try {
+        return Cache::remember("provider_metrics_{$provider->id}", 300, function () use ($provider) {
+            $completedBookings = $provider->bookings()->completed();
+            $thisMonth = $provider->bookings()->thisMonth();
+
             return [
-                'totalClients' => DB::table('bookings')
-                    ->where('provider_id', $provider->id)
-                    ->where('status', 'completed')
-                    ->distinct('user_id')
+                'activeFamilies' => $provider->clients()->count(),
+                'weeklyActivities' => $provider->activities()
+                    ->whereBetween('start_date', [now()->startOfWeek(), now()->endOfWeek()])
                     ->count(),
-                'activeSessions' => DB::table('bookings')
-                    ->where('provider_id', $provider->id)
-                    ->where('status', 'active')
-                    ->count(),
-                'completedSessions' => DB::table('bookings')
-                    ->where('provider_id', $provider->id)
-                    ->where('status', 'completed')
-                    ->count(),
-                'revenue' => DB::table('bookings')
-                    ->where('provider_id', $provider->id)
-                    ->where('status', 'completed')
-                    ->sum('amount') ?? 0,
-                'averageRating' => $provider->rating ?? 0,
-                'totalReviews' => $provider->total_reviews ?? 0,
-                'wellnessScore' => 8.5,
-                'bondingActivities' => 24
+                'satisfactionRate' => round($provider->average_rating * 20, 0) . '%', // Convert 5-star to percentage
+                'totalRevenue' => $provider->monthly_revenue,
+                'totalClients' => $provider->clients()->count(),
+                'activeSessions' => $provider->bookings()->confirmed()->upcoming()->count(),
+                'completedSessions' => $completedBookings->count(),
+                'pendingBookings' => $provider->bookings()->pending()->count(),
+                'todaySessions' => $provider->bookings()->today()->count(),
+                'completionRate' => $provider->completion_rate,
+                'averageRating' => round($provider->average_rating, 1),
+                'totalReviews' => $provider->total_reviews,
+                'monthlyBookings' => $thisMonth->count(),
+                'monthlyRevenue' => $thisMonth->sum('amount'),
             ];
-        } catch (\Throwable $e) {
-            return [
-                'totalClients' => 0,
-                'activeSessions' => 0,
-                'completedSessions' => 0,
-                'revenue' => 0,
-                'averageRating' => 0,
-                'totalReviews' => 0,
-                'wellnessScore' => 0,
-                'bondingActivities' => 0
-            ];
-        }
+        });
     }
 
-    private function getUpcomingBookings($user, $provider)
+    private function getUpcomingBookings($provider)
     {
-        try {
-            return DB::table('bookings')
-                ->join('users', 'bookings.user_id', '=', 'users.id')
-                ->where('bookings.provider_id', $provider->id)
-                ->where('bookings.booking_date', '>=', now())
-                ->where('bookings.status', 'confirmed')
-                ->select('bookings.*', 'users.name as client_name', 'users.email as client_email')
-                ->orderBy('bookings.booking_date')
+        return Cache::remember("provider_upcoming_{$provider->id}", 180, function () use ($provider) {
+            return $provider->bookings()
+                ->with(['user:id,name,email', 'activity:id,title'])
+                ->upcoming()
+                ->orderBy('booking_date')
                 ->limit(5)
                 ->get();
-        } catch (\Throwable $e) {
-            return collect();
-        }
+        });
     }
 
-    private function getRecentActivities($user, $provider)
+    private function getRecentActivities($provider)
     {
-        try {
-            return DB::table('bookings')
-                ->join('users', 'bookings.user_id', '=', 'users.id')
-                ->where('bookings.provider_id', $provider->id)
-                ->whereIn('bookings.status', ['completed', 'cancelled'])
-                ->select('bookings.*', 'users.name as client_name')
-                ->orderBy('bookings.updated_at', 'desc')
+        return Cache::remember("provider_recent_{$provider->id}", 180, function () use ($provider) {
+            return $provider->bookings()
+                ->with(['user:id,name', 'activity:id,title'])
+                ->whereIn('status', ['completed', 'cancelled'])
+                ->orderByDesc('updated_at')
                 ->limit(10)
                 ->get();
-        } catch (\Throwable $e) {
-            return collect();
-        }
+        });
     }
 
-    private function getWellnessData($user, $provider)
+    private function getWellnessData($provider)
     {
-        return [
-            'physical' => 85,
-            'mental' => 78,
-            'emotional' => 82,
-            'social' => 90,
-            'spiritual' => 75,
-            'weeklyProgress' => [7.5, 8.2, 7.8, 8.5, 8.1, 8.7, 8.3],
-            'goals' => [
-                ['name' => 'Daily Bonding Activities', 'current' => 12, 'target' => 15, 'unit' => 'activities'],
-                ['name' => 'Client Satisfaction', 'current' => 4.8, 'target' => 5.0, 'unit' => 'stars'],
-                ['name' => 'Session Completion Rate', 'current' => 92, 'target' => 95, 'unit' => '%']
-            ]
-        ];
+        // TODO: Replace with real wellness tracking data
+        return Cache::remember("provider_wellness_{$provider->id}", 900, function () use ($provider) {
+            return [
+                'physical' => 85,
+                'mental' => 78,
+                'emotional' => 82,
+                'social' => 90,
+                'spiritual' => 75,
+                'weeklyProgress' => [7.5, 8.2, 7.8, 8.5, 8.1, 8.7, 8.3],
+                'goals' => [
+                    [
+                        'name' => 'Daily Bonding Activities',
+                        'current' => $provider->activities()->whereDate('start_date', today())->count(),
+                        'target' => 15,
+                        'unit' => 'activities'
+                    ],
+                    [
+                        'name' => 'Client Satisfaction',
+                        'current' => $provider->average_rating,
+                        'target' => 5.0,
+                        'unit' => 'stars'
+                    ],
+                    [
+                        'name' => 'Session Completion Rate',
+                        'current' => $provider->completion_rate,
+                        'target' => 95,
+                        'unit' => '%'
+                    ]
+                ]
+            ];
+        });
     }
 
-    private function getBondingChartData($user, $provider)
+    private function getBondingChartData($provider)
     {
-        return [
-            'bookingStatus' => [
-                'labels' => ['Completed', 'Upcoming', 'Cancelled'],
-                'data' => [65, 25, 10]
-            ],
-            'revenueOverTime' => [
-                'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-                'data' => [1200, 1500, 1800, 1600, 2000, 2300]
-            ],
-            'clientSatisfaction' => [
-                'labels' => ['5 Stars', '4 Stars', '3 Stars', '2 Stars', '1 Star'],
-                'data' => [45, 35, 15, 3, 2]
-            ],
-            'sessionTypes' => [
-                'labels' => ['Individual Bonding', 'Group Activities', 'Family Sessions', 'Workshops'],
-                'data' => [40, 30, 20, 10]
-            ]
-        ];
+        return Cache::remember("provider_charts_{$provider->id}", 600, function () use ($provider) {
+            // Booking status distribution
+            $bookingCounts = $provider->bookings()
+                ->selectRaw('status, COUNT(*) as count')
+                ->groupBy('status')
+                ->pluck('count', 'status')
+                ->toArray();
+
+            // Monthly revenue for the last 6 months
+            $revenueData = $provider->bookings()
+                ->completed()
+                ->whereBetween('booking_date', [now()->subMonths(5)->startOfMonth(), now()->endOfMonth()])
+                ->selectRaw('MONTH(booking_date) as month, YEAR(booking_date) as year, SUM(amount) as revenue')
+                ->groupBy('month', 'year')
+                ->orderBy('year')
+                ->orderBy('month')
+                ->get();
+
+            // Client satisfaction ratings
+            $ratingCounts = $provider->reviews()
+                ->selectRaw('rating, COUNT(*) as count')
+                ->groupBy('rating')
+                ->pluck('count', 'rating')
+                ->toArray();
+
+            // Activity types distribution
+            $activityTypes = $provider->activities()
+                ->selectRaw('category, COUNT(*) as count')
+                ->groupBy('category')
+                ->pluck('count', 'category')
+                ->toArray();
+
+            return [
+                'familyEngagement' => [
+                    'labels' => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                    'data' => $revenueData->pluck('revenue')->values()->toArray()
+                ],
+                'activityTypes' => [
+                    'labels' => array_keys($activityTypes),
+                    'data' => array_values($activityTypes)
+                ],
+                'feedbackScores' => [
+                    'labels' => ['5★', '4★', '3★', '2★', '1★'],
+                    'data' => [
+                        $ratingCounts[5] ?? 0,
+                        $ratingCounts[4] ?? 0,
+                        $ratingCounts[3] ?? 0,
+                        $ratingCounts[2] ?? 0,
+                        $ratingCounts[1] ?? 0,
+                    ]
+                ],
+                'revenueBreakdown' => [
+                    'labels' => ['Workshops', 'Adventures', 'Creative', 'Sports', 'Tours'],
+                    'data' => [45000, 38000, 32000, 28000, 11200] // TODO: Make dynamic
+                ]
+            ];
+        });
     }
 }

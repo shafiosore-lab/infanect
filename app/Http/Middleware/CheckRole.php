@@ -24,10 +24,16 @@ class CheckRole
             return redirect()->route('login');
         }
 
-        // For development/testing, allow admin users to access any dashboard
-        $userRole = $user->role_id ?? ($user->role->slug ?? 'client');
+        // Get user role - handle both string and relationship cases
+        $userRole = $user->role;
+        if (is_object($userRole) && isset($userRole->slug)) {
+            $userRole = $userRole->slug;
+        } elseif (is_object($userRole) && isset($userRole->name)) {
+            $userRole = $userRole->name;
+        }
 
-        if (in_array($userRole, ['super-admin', 'admin'])) {
+        // For development/testing, allow admin users to access any dashboard
+        if (in_array($userRole, ['super-admin', 'admin', 'super_admin'])) {
             return $next($request);
         }
 
@@ -39,14 +45,4 @@ class CheckRole
         // If user doesn't have required role, redirect with a message
         return redirect()->route('dashboard')->with('warning', 'You don\'t have permission to access that area. Redirected to your dashboard.');
     }
-        // If user has multiple roles, check intersection
-        $userRoles = is_array($user->role) ? $user->role : [$user->role->slug];
-
-        if (count(array_intersect($mappedRoles, $userRoles)) > 0) {
-            return $next($request);
-        }
-
-        abort(403, 'Unauthorized access.');
-    }
-}
 }

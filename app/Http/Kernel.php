@@ -32,6 +32,7 @@ class Kernel extends HttpKernel
     protected $routeMiddleware = [
         // ...existing middleware...
         'role' => \App\Http\Middleware\CheckRole::class,
+        'check.provider.type' => \App\Http\Middleware\CheckProviderType::class,
     ];
 
     protected $middlewareAliases = [

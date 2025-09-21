@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'dashboard' => 'Dashboard',
     'top_activities' => 'Top Activities',
     'top_services'   => 'Top Services',
     'top_providers'  => 'Top Providers',

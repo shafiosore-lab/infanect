@@ -30,8 +30,20 @@ class ServiceBooking extends Model
         'end_at' => 'datetime',
     ];
 
-    public static $statuses = ['pending','confirmed','completed','canceled','refunded'];
+    /**
+     * Define the valid booking statuses
+     */
+    public static $statuses = [
+        'pending',
+        'confirmed',
+        'completed',
+        'canceled',
+        'refunded',
+    ];
 
+    /**
+     * Relationships
+     */
     public function service()
     {
         return $this->belongsTo(ProfessionalService::class, 'professional_service_id');
@@ -42,15 +54,19 @@ class ServiceBooking extends Model
         return $this->belongsTo(User::class, 'client_id');
     }
 
-    public function isOverlapping($start, $end)
+    /**
+     * Check if a given time range overlaps with existing bookings for the same service
+     */
+    public function isOverlapping($start, $end): bool
     {
         return $this->where('professional_service_id', $this->professional_service_id)
             ->where('status', '!=', 'canceled')
-            ->where(function($q) use ($start, $end) {
+            ->where(function ($q) use ($start, $end) {
                 $q->whereBetween('start_at', [$start, $end])
                   ->orWhereBetween('end_at', [$start, $end])
-                  ->orWhere(function($q2) use ($start, $end) {
-                      $q2->where('start_at', '<=', $start)->where('end_at', '>=', $end);
+                  ->orWhere(function ($q2) use ($start, $end) {
+                      $q2->where('start_at', '<=', $start)
+                         ->where('end_at', '>=', $end);
                   });
             })->exists();
     }

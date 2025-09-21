@@ -10,6 +10,9 @@ class ServiceInsight extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * The attributes that are mass assignable.
+     */
     protected $fillable = [
         'service_id',       // Link to the service
         'views',            // Number of times the service has been viewed
@@ -20,19 +23,25 @@ class ServiceInsight extends Model
         'date',             // Date of the insight
     ];
 
-    // Relationship: each insight belongs to a service
+    /**
+     * Relationship: each insight belongs to a service
+     */
     public function service()
     {
         return $this->belongsTo(Service::class, 'service_id');
     }
 
-    // Scope: filter insights by country
+    /**
+     * Scope: filter insights by country
+     */
     public function scopeCountry($query, $country)
     {
         return $query->where('country', $country);
     }
 
-    // Scope: filter insights by date
+    /**
+     * Scope: filter insights by a specific date
+     */
     public function scopeDate($query, $date)
     {
         return $query->whereDate('date', $date);

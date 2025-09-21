@@ -24,7 +24,7 @@ class DashboardController extends Controller
         $pendingBookings = (int) DB::table('bookings')->where('provider_id', $providerId)->where('status', 'pending')->count();
         $totalEarnings = (float) DB::table('bookings')->where('provider_id', $providerId)->where('status', 'completed')->sum('amount_paid');
 
-        return view('provider.dashboard', [
+        return view('dashboards.provider', [
             'totalBookings' => $totalBookings,
             'completedBookings' => $completedBookings,
             'pendingBookings' => $pendingBookings,

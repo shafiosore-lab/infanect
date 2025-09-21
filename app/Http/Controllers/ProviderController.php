@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\User;
 use App\Models\Provider;
 use App\Models\Role;
@@ -21,6 +22,18 @@ class ProviderController extends Controller
     {
         try {
             $query = Provider::query();
+
+            // Search by name/business
+            if ($request->filled('q')) {
+                $q = $request->q;
+                $query->where(function ($sub) use ($q) {
+                    $sub->where('business_name', 'like', "%{$q}%")
+                        ->orWhereHas('user', function ($userQuery) use ($q) {
+                            $userQuery->where('name', 'like', "%{$q}%")
+                                      ->orWhere('email', 'like', "%{$q}%");
+                        });
+                });
+            }
 
             // Filter: Location
             if ($request->filled('location') && $request->location !== 'All') {
@@ -41,7 +54,8 @@ class ProviderController extends Controller
 
             return view('providers.index', compact('providers'));
         } catch (\Exception $e) {
-            // Create empty paginated collection as fallback
+            Log::error('Provider index failed', ['error' => $e->getMessage()]);
+
             $providers = new \Illuminate\Pagination\LengthAwarePaginator(
                 collect([]),
                 0,
@@ -60,25 +74,18 @@ class ProviderController extends Controller
     public function show(Provider $provider)
     {
         $provider->load([
-            'reviews' => function($query) {
-                $query->latest()->limit(10);
-            },
-            'bookings' => function($query) {
-                $query->where('status', 'completed')->latest()->limit(5);
-            }
+            'reviews' => fn ($q) => $q->latest()->limit(10),
+            'bookings' => fn ($q) => $q->where('status', 'completed')->latest()->limit(5)
         ]);
 
-        // Average rating
         $avgRating = $provider->reviews->avg('rating') ?? $provider->avg_rating;
-
-        // Recent reviews
         $recentReviews = $provider->reviews->take(5);
 
         return view('providers.show', compact('provider', 'avgRating', 'recentReviews'));
     }
 
     /**
-     * Register a new provider.
+     * Show provider registration form.
      */
     public function register()
     {
@@ -93,7 +100,6 @@ class ProviderController extends Controller
      */
     public function store(Request $request)
     {
-        // Dynamic validation based on provider type
         $providerType = $request->input('provider_type');
         $typeConfig = collect(config('provider.types'))->firstWhere('slug', $providerType);
 
@@ -101,7 +107,7 @@ class ProviderController extends Controller
             return back()->withErrors(['provider_type' => 'Invalid provider type selected.']);
         }
 
-        // Base validation rules
+        // Validation rules
         $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -122,32 +128,37 @@ class ProviderController extends Controller
             'availability' => 'nullable|array'
         ];
 
-        // Add dynamic document validation based on provider type
+        // Required KYC docs
         $requiredDocs = $typeConfig['required_documents'] ?? [];
         foreach ($requiredDocs as $docKey) {
-            $rules[$docKey] = 'required|file|mimes:pdf,jpg,jpeg,png|max:5120'; // 5MB max
+            $rules[$docKey] = 'required|file|mimes:pdf,jpg,jpeg,png|max:5120';
         }
 
-        // Optional documents
+        // Optional docs
         $kycDocuments = config('provider.kyc_documents', []);
         foreach ($kycDocuments as $docKey => $docConfig) {
             if (!in_array($docKey, $requiredDocs)) {
-                $rules[$docKey] = 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240'; // 10MB max
+                $rules[$docKey] = 'nullable|file|mimes:pdf,jpg,jpeg,png,doc,docx|max:10240';
             }
         }
 
         $validated = $request->validate($rules);
 
         DB::beginTransaction();
+        $user = null;
+        $uploadedDocuments = [];
 
         try {
-            // Create user account
+            // Resolve role
+            $roleId = Role::where('slug', $providerType)->value('id') ?? Role::PROVIDER;
+
+            // Create user
             $user = User::create([
                 'name' => $validated['name'],
                 'email' => $validated['email'],
                 'phone' => $validated['phone'] ?? null,
                 'password' => Hash::make($validated['password']),
-                'role_id' => $providerType, // Store provider type as role
+                'role_id' => $roleId,
                 'provider_data' => json_encode([
                     'provider_type' => $providerType,
                     'registration_stage' => 'kyc_pending'
@@ -155,7 +166,7 @@ class ProviderController extends Controller
             ]);
 
             // Create provider profile
-            $providerData = [
+            $provider = Provider::create([
                 'user_id' => $user->id,
                 'provider_type' => $providerType,
                 'business_name' => $validated['business_name'] ?? $validated['name'],
@@ -171,20 +182,15 @@ class ProviderController extends Controller
                 'hourly_rate' => $validated['hourly_rate'] ?? null,
                 'availability' => json_encode($validated['availability'] ?? []),
                 'status' => 'pending',
-                'kyc_status' => 'pending',
-                'created_at' => now(),
-                'updated_at' => now()
-            ];
+                'kyc_status' => 'pending'
+            ]);
 
-            $provider = Provider::create($providerData);
-
-            // Handle file uploads
-            $uploadedDocuments = [];
+            // Handle KYC uploads (private disk)
             foreach ($kycDocuments as $docKey => $docConfig) {
                 if ($request->hasFile($docKey)) {
                     $file = $request->file($docKey);
-                    $filename = $docKey . '_' . $user->id . '_' . time() . '.' . $file->getClientOriginalExtension();
-                    $path = $file->storeAs('kyc-documents/' . $user->id, $filename, 'private');
+                    $filename = "{$docKey}_{$user->id}_" . time() . '.' . $file->getClientOriginalExtension();
+                    $path = $file->storeAs("kyc-documents/{$user->id}", $filename, 'private');
 
                     $uploadedDocuments[$docKey] = [
                         'original_name' => $file->getClientOriginalName(),
@@ -196,70 +202,78 @@ class ProviderController extends Controller
                 }
             }
 
-            // Update provider with document info
-            $provider->update([
-                'kyc_documents' => json_encode($uploadedDocuments)
-            ]);
+            $provider->update(['kyc_documents' => json_encode($uploadedDocuments)]);
 
             // Dispatch KYC processing job
             ProcessKYCDocuments::dispatch($provider->id);
 
             DB::commit();
 
+            // Broadcast event
+            event(new NewContentCreated($provider));
+
             return redirect()
                 ->route('login')
                 ->with('success', 'Provider registration submitted successfully! Please check your email for verification instructions. Your account will be reviewed within 24-48 hours.');
 
         } catch (\Exception $e) {
-            DB::rollback();
+            DB::rollBack();
 
-            // Clean up any uploaded files
-            foreach ($uploadedDocuments ?? [] as $doc) {
+            // Cleanup uploaded docs
+            foreach ($uploadedDocuments as $doc) {
                 if (Storage::disk('private')->exists($doc['stored_path'])) {
                     Storage::disk('private')->delete($doc['stored_path']);
                 }
             }
 
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Registration failed. Please try again.']);
+            // Cleanup user if created
+            if ($user) {
+                $user->delete();
+            }
+
+            Log::error('Provider registration failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return back()->withInput()->withErrors(['error' => 'Registration failed. Please try again.']);
         }
     }
 
     /**
-     * Display featured providers.
+     * Featured providers.
      */
-    public function featured(Request $request)
+    public function featured()
     {
         $providers = Provider::where('is_featured', true)
-                             ->orderBy('avg_rating', 'desc')
-                             ->paginate(12);
+            ->orderBy('avg_rating', 'desc')
+            ->paginate(12);
 
         return view('providers.featured', compact('providers'));
     }
 
     /**
-     * Display top-rated providers.
+     * Top-rated providers.
      */
-    public function topRated(Request $request)
+    public function topRated()
     {
         $providers = Provider::orderBy('avg_rating', 'desc')
-                             ->orderBy('total_reviews', 'desc')
-                             ->paginate(12);
+            ->orderBy('total_reviews', 'desc')
+            ->paginate(12);
 
         return view('providers.top-rated', compact('providers'));
     }
 
     /**
-     * Show the onboarding form for providers.
+     * Show provider onboarding form.
      */
-    public function showOnboarding(Request $request)
+    public function showOnboarding()
     {
         return view('providers.onboarding');
     }
 
     /**
-     * Handle the onboarding form submission.
+     * Store onboarding data.
      */
     public function storeOnboarding(Request $request)
     {
@@ -272,25 +286,25 @@ class ProviderController extends Controller
             'language' => 'nullable|string|max:10',
         ]);
 
-        // Create or update provider profile linked to user
         $provider = Provider::updateOrCreate(
             ['user_id' => $request->user()->id],
             array_merge($data, ['status' => 'pending'])
         );
 
-        return redirect()->route('provider.documents')->with('status', 'Profile saved. Please upload required documents.');
+        return redirect()->route('provider.documents')
+            ->with('status', 'Profile saved. Please upload required documents.');
     }
 
     /**
-     * Show the documents upload form for providers.
+     * Show documents upload form.
      */
-    public function documents(Request $request)
+    public function documents()
     {
         return view('providers.documents');
     }
 
     /**
-     * Handle the documents upload.
+     * Handle documents upload.
      */
     public function uploadDocuments(Request $request)
     {
@@ -302,18 +316,19 @@ class ProviderController extends Controller
         $provider = Provider::firstOrCreate(['user_id' => $request->user()->id]);
 
         if ($request->hasFile('business_license')) {
-            $path = $request->file('business_license')->store('provider_documents');
+            $path = $request->file('business_license')->store("provider_documents/{$request->user()->id}", 'private');
             $provider->business_license_path = $path;
         }
 
         if ($request->hasFile('id_document')) {
-            $path = $request->file('id_document')->store('provider_documents');
+            $path = $request->file('id_document')->store("provider_documents/{$request->user()->id}", 'private');
             $provider->id_document_path = $path;
         }
 
         $provider->status = 'review';
         $provider->save();
 
-        return redirect()->route('provider.documents')->with('status', 'Documents uploaded. Awaiting review.');
+        return redirect()->route('provider.documents')
+            ->with('status', 'Documents uploaded. Awaiting review.');
     }
 }

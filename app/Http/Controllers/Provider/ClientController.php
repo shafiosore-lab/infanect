@@ -69,6 +69,6 @@ class ClientController extends Controller
             ];
         }
 
-        return view('provider.clients.show', compact('client', 'bookings', 'stats', 'provider'));
+        return view('providers.clients.show', compact('client', 'bookings', 'stats', 'provider'));
     }
 }

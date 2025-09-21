@@ -4,137 +4,80 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Activity;
-use App\Models\ServiceProvider;
+use App\Models\User;
 
 class ActivitySeeder extends Seeder
 {
     public function run(): void
     {
-        $activities = [
+        // Get bonding providers
+        $bondingProviders = User::where('provider_type', 'provider-bonding')->get();
+
+        $defaultProvider = User::first();
+        if ($bondingProviders->isEmpty()) {
+            $this->command->warn('No bonding providers found. Using default user.');
+            if (!$defaultProvider) {
+                $this->command->error('No users found in database.');
+                return;
+            }
+        }
+
+        // Featured activities
+        $featuredActivities = [
             [
-                'title' => 'Parent-Child Bonding Workshop',
-                'category' => 'Bonding',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Community Center',
-                'datetime' => now()->addDays(7)->setTime(10, 0),
+                'title' => 'Family Cooking Workshop',
+                'description' => 'Learn to cook traditional Kenyan dishes together as a family. Bond over preparing nyama choma, ugali, and sukuma wiki.',
+                'category' => 'cooking',
                 'price' => 1500.00,
-                'slots' => 20,
-                'booking_link' => null,
-                'provider_id' => 1, // Little Stars Childcare
+                'max_participants' => 12,
+                'location' => 'Community Center, Westlands',
             ],
             [
-                'title' => 'Infant Massage & Stimulation',
-                'category' => 'Infant Care',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Wellness Center',
-                'datetime' => now()->addDays(3)->setTime(14, 0),
-                'price' => 800.00,
-                'slots' => 10,
-                'booking_link' => null,
-                'provider_id' => 2, // Sunshine Kids Academy
+                'title' => 'Nature Walk & Picnic',
+                'description' => 'Explore Karura Forest together as families. Enjoy nature, wildlife spotting, and a healthy picnic lunch.',
+                'category' => 'outdoor',
+                'price' => 1200.00,
+                'max_participants' => 20,
+                'location' => 'Karura Forest, Nairobi',
             ],
             [
-                'title' => 'Toddler Art & Craft Session',
-                'category' => 'Arts & Crafts',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Creative Studio',
-                'datetime' => now()->addDays(5)->setTime(11, 0),
-                'price' => 600.00,
-                'slots' => 15,
-                'booking_link' => null,
-                'provider_id' => 3, // Tiny Tots Nursery
-            ],
-            [
-                'title' => 'Preschool Science Experiment',
-                'category' => 'STEM',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Science Lab',
-                'datetime' => now()->addDays(10)->setTime(13, 0),
+                'title' => 'Arts & Crafts Session',
+                'description' => 'Create beautiful Kenyan-inspired artwork together. Make beaded jewelry, paint traditional patterns, and craft memory books.',
+                'category' => 'creative',
                 'price' => 1000.00,
-                'slots' => 12,
-                'booking_link' => null,
-                'provider_id' => 4, // Rainbow Children's Center
-            ],
-            [
-                'title' => 'Outdoor Adventure Day',
-                'category' => 'Outdoor',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'National Park',
-                'datetime' => now()->addDays(14)->setTime(9, 0),
-                'price' => 2500.00,
-                'slots' => 25,
-                'booking_link' => null,
-                'provider_id' => 5, // Happy Hearts Daycare
-            ],
-            [
-                'title' => 'Music & Movement Class',
-                'category' => 'Music',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Music Studio',
-                'datetime' => now()->addDays(2)->setTime(15, 0),
-                'price' => 700.00,
-                'slots' => 18,
-                'booking_link' => null,
-                'provider_id' => 6, // Bright Futures Academy
-            ],
-            [
-                'title' => 'Storytelling & Literacy Hour',
-                'category' => 'Literacy',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Library',
-                'datetime' => now()->addDays(4)->setTime(16, 0),
-                'price' => 500.00,
-                'slots' => 20,
-                'booking_link' => null,
-                'provider_id' => 7, // Little Angels Montessori
-            ],
-            [
-                'title' => 'Sensory Play Workshop',
-                'category' => 'Sensory',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Play Center',
-                'datetime' => now()->addDays(6)->setTime(12, 0),
-                'price' => 900.00,
-                'slots' => 14,
-                'booking_link' => null,
-                'provider_id' => 8, // Playful Minds Nursery
-            ],
-            [
-                'title' => 'Nature Exploration Walk',
-                'category' => 'Nature',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Urban Forest',
-                'datetime' => now()->addDays(8)->setTime(8, 30),
-                'price' => 400.00,
-                'slots' => 16,
-                'booking_link' => null,
-                'provider_id' => 9, // Green Valley Childcare
-            ],
-            [
-                'title' => 'Creative Expression Class',
-                'category' => 'Arts',
-                'country' => 'Kenya',
-                'region' => 'Nairobi',
-                'venue' => 'Art Gallery',
-                'datetime' => now()->addDays(12)->setTime(10, 30),
-                'price' => 750.00,
-                'slots' => 12,
-                'booking_link' => null,
-                'provider_id' => 10, // Creative Kids Hub
+                'max_participants' => 15,
+                'location' => 'Art Studio, Karen',
             ],
         ];
 
-        foreach ($activities as $activityData) {
-            Activity::create($activityData);
+        foreach ($featuredActivities as $activityData) {
+            $provider = $bondingProviders->isNotEmpty() ? $bondingProviders->random() : $defaultProvider;
+
+            $startDate = now()->addDays(rand(1, 14))->setTime(rand(9, 16), [0, 30][rand(0, 1)]);
+            $endDate = (clone $startDate)->addHours(3);
+
+            Activity::create(array_merge($activityData, [
+                'type' => 'bonding',
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'status' => 'published',
+                'created_by' => $provider->id,
+                'provider_id' => $provider->id,
+                'requirements' => ['comfortable_clothes', 'positive_attitude'],
+                'tags' => ['family', 'bonding', 'community'],
+                'is_active' => true,
+            ]));
+        }
+
+        // Generate random activities using factory
+        if ($bondingProviders->isNotEmpty()) {
+            Activity::factory()->count(15)->published()->upcoming()->create();
+            Activity::factory()->count(10)->past()->create();
+            Activity::factory()->count(5)->draft()->create();
+
+            $this->command->info('✅ Created ' . Activity::count() . ' activities');
+        } else {
+            $this->command->warn('⚠️ Only created featured activities (no providers for factory generation)');
         }
     }
 }

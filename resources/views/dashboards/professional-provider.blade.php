@@ -396,6 +396,57 @@
 </div>
 @endif
 
+<!-- Wellness Scores Section -->
+<div class="bg-white shadow-sm rounded-lg mb-8">
+    <div class="px-4 py-5 sm:p-6">
+        <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4">Wellness Scores</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="text-center">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"></circle>
+                    <circle id="physical-health-path" cx="60" cy="60" r="50" fill="none" stroke="#10b981" stroke-width="8" stroke-dasharray="0 314" transform="rotate(-90 60 60)"></circle>
+                </svg>
+                <p class="mt-4 text-sm font-medium text-gray-900">Physical Health</p>
+                <p id="physical-health-score" class="text-2xl font-bold text-green-600">0%</p>
+            </div>
+            <div class="text-center">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="#e5e7eb" stroke-width="8"></circle>
+                    <circle id="overall-wellness-path" cx="60" cy="60" r="50" fill="none" stroke="#8b5cf6" stroke-width="8" stroke-dasharray="0 314" transform="rotate(-90 60 60)"></circle>
+                </svg>
+                <p class="mt-4 text-sm font-medium text-gray-900">Overall Wellness</p>
+                <p id="overall-wellness-score" class="text-2xl font-bold text-purple-600">0%</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const scoreElements = {
+        'Physical Health': { element: 'physical-health-score', path: 'physical-health-path' },
+        'Overall Wellness': { element: 'overall-wellness-score', path: 'overall-wellness-path' }
+    };
+
+    fetch('/api/wellness-scores')
+        .then(response => response.json())
+        .then(scores => {
+            for (const [key, { element, path }] of Object.entries(scoreElements)) {
+                if (scores[key] !== undefined) {
+                    const score = Math.min(Math.max(scores[key], 0), 100);
+                    document.getElementById(element).textContent = score + '%';
+                    const circle = document.getElementById(path);
+                    const radius = circle.r.baseVal.value;
+                    const circumference = 2 * Math.PI * radius;
+                    const offset = circumference - (score / 100) * circumference;
+                    circle.style.strokeDasharray = `${circumference} ${circumference}`;
+                    circle.style.strokeDashoffset = offset;
+                }
+            }
+        })
+        .catch(err => console.error('Error fetching wellness scores:', err));
+});
+</script>
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>

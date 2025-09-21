@@ -10,6 +10,9 @@ class ServiceProvider extends Model
 {
     use HasFactory, SoftDeletes;
 
+    /**
+     * The attributes that are mass assignable.
+     */
     protected $fillable = [
         'name',
         'email',
@@ -27,6 +30,9 @@ class ServiceProvider extends Model
         'is_approved',
     ];
 
+    /**
+     * The attributes that should be cast.
+     */
     protected $casts = [
         'availability' => 'array',
         'metadata'     => 'array',
@@ -78,7 +84,7 @@ class ServiceProvider extends Model
         return $query->where('tenant_id', $tenantId);
     }
 
-    // Scope for active providers
+    // Scope for active providers (not soft deleted)
     public function scopeActive($query)
     {
         return $query->whereNull('deleted_at');
@@ -90,7 +96,7 @@ class ServiceProvider extends Model
         return $query->where('country', $country);
     }
 
-    // Scope for filtering by specialization
+    // Scope for filtering by specialization keyword
     public function scopeSpecializedIn($query, string $field)
     {
         return $query->where('specialization', 'LIKE', "%{$field}%");

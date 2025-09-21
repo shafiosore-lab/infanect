@@ -6,6 +6,8 @@ use Illuminate\Http\Request;
 use App\Models\Booking;
 use App\Models\Activity;
 use App\Models\Service;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class BookingController extends Controller
 {

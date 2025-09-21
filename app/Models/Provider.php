@@ -4,47 +4,31 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Provider extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
-        'business_name',
-        'description',
-        'services_offered',
-        'location',
-        'phone',
-        'email',
-        'website',
-        'social_media_links',
-        'certifications',
-        'experience_years',
-        'availability_schedule',
-        'pricing_info',
-        'photos',
-        'videos',
-        'is_verified',
-        'verification_documents',
-        'status',
-        'rating',
-        'total_reviews'
+        'provider_type',
+        'kyc_status',
+        'specializations',
+        'bio',
+        'hourly_rate',
+        'is_active',
     ];
 
     protected $casts = [
-        'services_offered' => 'array',
-        'social_media_links' => 'array',
-        'certifications' => 'array',
-        'availability_schedule' => 'array',
-        'pricing_info' => 'array',
-        'photos' => 'array',
-        'videos' => 'array',
-        'verification_documents' => 'array',
-        'is_verified' => 'boolean',
-        'rating' => 'decimal:2',
+        'specializations' => 'array',
+        'hourly_rate' => 'decimal:2',
+        'is_active' => 'boolean',
     ];
 
+    /**
+     * Relationships
+     */
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -52,23 +36,75 @@ class Provider extends Model
 
     public function bookings()
     {
-        return $this->hasMany(Booking::class);
+        return $this->hasMany(Booking::class, 'provider_id', 'user_id');
+    }
+
+    public function activities()
+    {
+        return $this->hasMany(Activity::class, 'provider_id', 'user_id');
+    }
+
+    public function clients()
+    {
+        return $this->belongsToMany(User::class, 'bookings', 'provider_id', 'user_id')
+            ->distinct();
     }
 
     public function reviews()
     {
-        return $this->hasMany(Review::class);
+        return $this->hasMany(Review::class, 'provider_id', 'user_id');
     }
 
-    // Scope for active providers (instead of using soft deletes)
+    public function transactions()
+    {
+        return $this->hasManyThrough(Transaction::class, Booking::class, 'provider_id', 'booking_id', 'user_id', 'id');
+    }
+
+    /**
+     * Scopes
+     */
     public function scopeActive($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('is_active', true);
     }
 
-    // Scope for verified providers
+    public function scopeByType($query, $type)
+    {
+        return $query->where('provider_type', $type);
+    }
+
     public function scopeVerified($query)
     {
-        return $query->where('is_verified', true);
+        return $query->where('kyc_status', 'approved');
+    }
+
+    /**
+     * Accessors & Helper Methods
+     */
+    public function getAverageRatingAttribute()
+    {
+        return $this->reviews()->avg('rating') ?? 0;
+    }
+
+    public function getTotalReviewsAttribute()
+    {
+        return $this->reviews()->count();
+    }
+
+    public function getMonthlyRevenueAttribute()
+    {
+        return $this->bookings()
+            ->where('status', 'completed')
+            ->whereMonth('created_at', now()->month)
+            ->sum('amount');
+    }
+
+    public function getCompletionRateAttribute()
+    {
+        $total = $this->bookings()->count();
+        if ($total === 0) return 0;
+
+        $completed = $this->bookings()->where('status', 'completed')->count();
+        return round(($completed / $total) * 100, 1);
     }
 }

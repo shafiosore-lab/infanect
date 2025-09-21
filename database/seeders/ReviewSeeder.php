@@ -4,7 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Models\User;
 
 class ReviewSeeder extends Seeder
 {
@@ -13,42 +13,62 @@ class ReviewSeeder extends Seeder
      */
     public function run(): void
     {
-        if (! Schema::hasTable('reviews')) {
-            return;
-        }
+        $providers = User::whereIn('role', ['provider'])->get();
+        $clients = User::where('role', 'client')->get();
+        $bookings = DB::table('bookings')->where('status', 'completed')->get();
 
-        if (! Schema::hasTable('providers')) {
-            // No providers table to reference - skip seeding reviews
-            return;
-        }
+        if ($providers->isEmpty() || $clients->isEmpty()) return;
 
-        // Find an existing provider to attach reviews to
-        $provider = DB::table('providers')->inRandomOrder()->first();
-        if (! $provider || ! isset($provider->id)) {
-            // No provider records available - skip seeding reviews
-            return;
-        }
-
-        $providerId = $provider->id;
-
-        // Double-check provider exists (safety)
-        $exists = DB::table('providers')->where('id', $providerId)->exists();
-        if (! $exists) return;
-
-        // Insert sample reviews idempotently and safely
-        $samples = [
-            ['reviewer_name' => 'John Doe', 'country_code' => 'US', 'rating' => 5, 'comment' => 'Excellent service! Highly recommend.', 'is_approved' => 1],
-            ['reviewer_name' => 'Alice Johnson', 'country_code' => 'KE', 'rating' => 5, 'comment' => 'Amazing bonding activities for families.', 'is_approved' => 1],
+        $reviews = [
+            [
+                'rating' => 5,
+                'comment' => 'Amazing family bonding experience! Our children loved every minute of the cooking workshop.',
+            ],
+            [
+                'rating' => 5,
+                'comment' => 'Dr. John is incredibly professional and helped our family through difficult times.',
+            ],
+            [
+                'rating' => 4,
+                'comment' => 'Great outdoor adventure! Well organized and safe for all family members.',
+            ],
+            [
+                'rating' => 5,
+                'comment' => 'The arts and crafts session brought our family closer together. Highly recommended!',
+            ],
+            [
+                'rating' => 4,
+                'comment' => 'Professional therapy session was very helpful. Felt comfortable and supported.',
+            ],
+            [
+                'rating' => 5,
+                'comment' => 'Sarah creates such a welcoming environment for families. Our kids ask when we can go back!',
+            ],
+            [
+                'rating' => 4,
+                'comment' => 'Nature walk was educational and fun. Learned so much about local wildlife.',
+            ],
+            [
+                'rating' => 5,
+                'comment' => 'Life-changing therapy sessions. Finally feel like we have tools to handle stress.',
+            ],
         ];
 
-        foreach ($samples as $s) {
-            try {
-                DB::table('reviews')->updateOrInsert(
-                    ['provider_id' => $providerId, 'reviewer_name' => $s['reviewer_name']],
-                    array_merge(['provider_id' => $providerId, 'created_at' => now(), 'updated_at' => now()], $s)
-                );
-            } catch (\Exception $e) {
-                // ignore FK or other insert errors
+        foreach ($reviews as $index => $review) {
+            if ($index < $clients->count() && $index % 2 < $providers->count()) {
+                $client = $clients[$index];
+                $provider = $providers[$index % $providers->count()];
+                $booking = $bookings->where('user_id', $client->id)->first();
+
+                DB::table('reviews')->insert(array_merge($review, [
+                    'user_id' => $client->id,
+                    'provider_id' => $provider->id,
+                    'booking_id' => $booking->id ?? null,
+                    'is_anonymous' => rand(0, 1) === 1,
+                    'is_published' => true,
+                    'created_at' => now()->subDays(rand(1, 60)),
+                    'updated_at' => now(),
+                ]));
             }
         }
     }

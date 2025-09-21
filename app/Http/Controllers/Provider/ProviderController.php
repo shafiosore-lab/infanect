@@ -87,7 +87,7 @@ class ProviderController extends Controller
 
             dd($existingProvider);
             if ($existingProvider) {
-                return redirect()->route('provider.dashboard')->with('info', 'You already have a provider profile.');
+                return redirect()->route('dashboard.provider')->with('info', 'You already have a provider profile.');
             }
 
             // Create provider (will need approval)
@@ -113,7 +113,7 @@ class ProviderController extends Controller
                 'request_data' => $request->all(),
             ]);
 
-            return redirect()->route('provider.dashboard')->with('success', 'Provider registration submitted for approval.');
+            return redirect()->route('dashboard.provider')->with('success', 'Provider registration submitted for approval.');
         }
 
         return view('provider.register');
